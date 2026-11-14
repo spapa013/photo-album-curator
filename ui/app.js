@@ -40,7 +40,7 @@ function currentPhoto() {
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
   if (browser) {
-    for (const id of ["browser-folder", "browser-zip", "browser-import", "browser-backup"]) {
+    for (const id of ["browser-folder", "browser-reconnect", "browser-zip", "browser-import", "browser-backup"]) {
       byId(id).disabled = busy || saving || pending.length > 0;
     }
   }
@@ -332,9 +332,48 @@ if (browser) {
   byId("local-file-help").remove();
   byId("empty").textContent = "Open a photo folder or ZIP to get started.";
   const status = byId("browser-project-status");
+  const reconnect = byId("browser-reconnect");
+  const progress = (message) => { status.textContent = message; };
+  function showFolder(result) {
+    if (!result) return;
+    reconnect.hidden = Boolean(result.opened);
+    progress(result.opened ? `Remembered folder: ${result.name}`
+      : `Reconnect ${result.name} to reopen your photos.`);
+  }
+  async function restoreFolder(ask) {
+    try {
+      showFolder(await browser.restoreFolder(progress, ask));
+    } catch (error) {
+      if (error.name !== "AbortError") {
+        progress("Could not reopen the saved folder. Open the folder again.");
+      }
+    }
+    await reloadAlbums();
+  }
+  reconnect.addEventListener("click", () => {
+    savePrinted();
+    if (!saving && !pending.length) perform(() => restoreFolder(true));
+  });
   for (const kind of ["folder", "zip", "import"]) {
     const input = byId("browser-" + kind + "-input");
-    byId("browser-" + kind).addEventListener("click", () => input.click());
+    byId("browser-" + kind).addEventListener("click", () => {
+      if (kind !== "folder" || !window.showDirectoryPicker) {
+        input.click();
+        return;
+      }
+      savePrinted();
+      if (saving || pending.length) return;
+      perform(async () => {
+        try {
+          const result = await browser.chooseFolder(progress);
+          showFolder(result);
+          await reloadAlbums(result.opened.includes(album) ? album : result.opened[0]);
+        } catch (error) {
+          if (error.name === "SecurityError") input.click();
+          else if (error.name !== "AbortError") throw error;
+        }
+      });
+    });
     input.addEventListener("change", () => {
       const files = Array.from(input.files);
       input.value = "";
@@ -349,12 +388,10 @@ if (browser) {
           status.textContent = `Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`;
         } else {
           try {
-            const opened = await browser.openFiles(files, kind === "folder", (message) => {
-              status.textContent = message;
-            });
-            await reloadAlbums(opened[0]);
+            const opened = await browser.openFiles(files, kind === "folder", progress);
+            await reloadAlbums(opened.includes(album) ? album : opened[0]);
           } finally {
-            status.textContent = "Photos stay on this device. Reopen sources after a page refresh.";
+            status.textContent = "Files opened with this picker need to be selected again after refresh.";
           }
         }
       });
@@ -374,12 +411,13 @@ if (browser) {
     byId("browser-final").querySelector("iframe").removeAttribute("src");
     perform(reloadAlbums);
   });
+  perform(() => restoreFolder(false));
 }
 
 if (window.location.protocol === "file:") {
   byId("loading").hidden = true;
   byId("local-file-help").hidden = false;
   byId("reload").disabled = true;
-} else {
+} else if (!browser) {
   perform(reloadAlbums);
 }

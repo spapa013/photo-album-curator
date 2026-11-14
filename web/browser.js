@@ -29,20 +29,20 @@
   });
   zip.configure({useWebWorkers: false});
 
-  async function project(update) {
+  async function project(update, key = "project") {
     const db = await database;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("settings", update ? "readwrite" : "readonly");
       const settings = transaction.objectStore("settings");
-      const request = settings.get("project");
+      const request = settings.get(key);
       let value;
       let error;
       request.onsuccess = () => {
         try {
-          value = request.result ?? projectDefault();
+          value = request.result ?? (key === "project" ? projectDefault() : null);
           if (update) {
             value = update(value) ?? value;
-            settings.put(value, "project");
+            settings.put(value, key);
           }
         } catch (problem) {
           error = problem;
@@ -141,13 +141,19 @@
   }
 
   async function openFiles(files, asFolders, progress) {
+    const root = asFolders ? files[0]?.webkitRelativePath.split("/")[0] : null;
+    if (asFolders && !root) throw new Error("Choose a photo folder.");
+    const entries = files.map((file) => ({
+      file, path: root ? file.webkitRelativePath.slice(root.length + 1) : file.name,
+    }));
+    return openEntries(entries, root, progress);
+  }
+
+  async function openEntries(entries, root, progress) {
     const groups = new Map();
-    if (asFolders) {
-      const root = files[0]?.webkitRelativePath.split("/")[0];
-      if (!root) throw new Error("Choose a photo folder.");
+    if (root !== null) {
       const loose = [];
-      for (const file of files) {
-        const path = file.webkitRelativePath.slice(root.length + 1);
+      for (const {file, path} of entries) {
         if (root.toLowerCase() === "albums") {
           const slash = path.indexOf("/");
           if (slash < 0) {
@@ -167,7 +173,7 @@
         groups.set("", loose.map((file) => ({file, path: file.name})));
       }
     } else {
-      await readArchives(files, groups);
+      await readArchives(entries.map(({file}) => file), groups);
     }
 
     const opened = new Map();
@@ -205,6 +211,41 @@
     });
     for (const [key, photos] of opened) sources.set(key, photos);
     return Array.from(opened.keys());
+  }
+
+  let rememberedFolder = null;
+
+  async function readFolder(folder, progress) {
+    const entries = [];
+    async function collect(directory, prefix) {
+      for await (const entry of directory.values()) {
+        if (entry.kind === "directory") {
+          await collect(entry, prefix + entry.name + "/");
+        } else if (photoType.test(entry.name) ||
+                    (!prefix && folder.name.toLowerCase() === "albums" && /\.zip$/i.test(entry.name))) {
+          entries.push({path: prefix + entry.name, file: await entry.getFile()});
+        }
+      }
+    }
+    await collect(folder, "");
+    return openEntries(entries, folder.name, progress);
+  }
+
+  async function chooseFolder(progress) {
+    const folder = await window.showDirectoryPicker({mode: "read"});
+    const opened = await readFolder(folder, progress);
+    await project(() => folder, "album-folder");
+    rememberedFolder = folder;
+    return {name: folder.name, opened};
+  }
+
+  async function restoreFolder(progress, reconnect = false) {
+    if (!reconnect) rememberedFolder = await project(null, "album-folder");
+    if (!rememberedFolder) return null;
+    const folder = rememberedFolder;
+    const permission = reconnect ? await folder.requestPermission({mode: "read"})
+      : await folder.queryPermission({mode: "read"});
+    return {name: folder.name, opened: permission === "granted" ? await readFolder(folder, progress) : null};
   }
 
   async function readArchives(files, groups) {
@@ -529,6 +570,7 @@
 
   window.browserCurator = {
     request, preview, render, showFinal, closeFinal, openFiles, importProject,
+    chooseFolder, restoreFolder,
     available: (key) => sources.has(key),
     async backup() {
       download(new Blob([JSON.stringify(await project())], {type: "application/json"}), "Photo Album Curator.json");

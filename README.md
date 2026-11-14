@@ -48,7 +48,7 @@ Open [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-albu
 
 To move over from v0.1.0, select **Import progress** and choose `Wedding Sorter.sqlite3` from your desktop workspace. Then open the original ZIPs or folders with the same names and structure. Import replaces the project saved in that browser. It brings over assignments, guests, print counts, and final-album choices.
 
-Progress saves in the current browser profile. Reopen your photo sources after refreshing the page, and use **Download backup** to keep a portable copy of your progress. The backup contains project data and filenames.
+Progress saves in the current browser profile. In browsers that support persistent folder access, **Open folder** remembers your selection. Choose **Allow on every visit** if the browser offers it. Use **Reconnect folder** if permission is needed again. ZIPs inside a remembered `Albums` folder reopen with it. Re-select individually opened ZIPs and folders opened with the fallback picker after refreshing. **Download backup** saves a portable copy of project data and filenames.
 
 In **Final albums**, choose a guest and select **Download ZIP**. The archive contains the included originals with numbered filenames. Browsers that offer a save dialog can stream the archive directly to disk. Other browsers assemble the ZIP before downloading, which may limit very large exports.
 
