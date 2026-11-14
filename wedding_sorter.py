@@ -11,6 +11,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import shutil
+from socketserver import TCPServer
 import sqlite3
 from tempfile import TemporaryDirectory
 import unicodedata
@@ -628,6 +629,13 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json({"error": "Page not found."}, HTTPStatus.NOT_FOUND)
 
 
+class LocalServer(ThreadingHTTPServer):
+    def server_bind(self):
+        # The loopback URL is fixed, so startup does not need a hostname lookup.
+        TCPServer.server_bind(self)
+        self.server_name, self.server_port = self.server_address
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--workspace", type=Path, default=HERE)
@@ -635,7 +643,7 @@ def main():
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     try:
-        with ThreadingHTTPServer(("127.0.0.1", args.port), Handler) as server:
+        with LocalServer(("127.0.0.1", args.port), Handler) as server:
             server.sorter = Sorter(args.workspace.resolve())
             server.host_header = f"127.0.0.1:{server.server_port}"
             server.url = f"http://{server.host_header}"
