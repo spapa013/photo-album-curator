@@ -13,7 +13,7 @@
   let sources = new Map();
   let workspace = "default";
   const defaultWorkspace = {id: "default", name: "Default workspace"};
-  const workspaceSetting = (key) => workspace === "default" ? key : `workspace:${workspace}:${key}`;
+  const workspaceSetting = (key, id = workspace) => id === "default" ? key : `workspace:${id}:${key}`;
   const photoType = /\.(jpe?g|jfif|png|webp|gif|bmp|avif)$/i;
   const basename = (path) => path.split("/").at(-1);
   const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -44,7 +44,7 @@
         try {
           value = request.result ?? fallback;
           if (update) {
-            value = update(value) ?? value;
+            value = update(value, settings) ?? value;
             settings.put(value, key);
           }
         } catch (problem) {
@@ -81,18 +81,28 @@
     return {entries, active: workspace};
   }
 
-  async function createWorkspace(value) {
+  async function createWorkspace(value, progress, files) {
     const name = value.trim().normalize("NFC");
     if (!name || name.length > 80) throw new Error("Enter a workspace name up to 80 characters.");
-    const entry = {id: crypto.randomUUID(), name};
-    const entries = await setting("workspaces", [defaultWorkspace], (existing) => {
+    const folder = files ? null : await window.showDirectoryPicker({mode: "read"});
+    const root = folder?.name ?? files[0].webkitRelativePath.split("/")[0];
+    const opened = folder ? await scanFolder(folder, progress)
+      : await scanEntries(folderEntries(files, root), root, progress);
+    const entry = {id: crypto.randomUUID(), name, folderName: root};
+    const entries = await setting("workspaces", [defaultWorkspace], (existing, settings) => {
       if (existing.some((item) => folded(item.name) === folded(name))) {
         throw new Error("A workspace with that name already exists.");
       }
+      const state = projectDefault();
+      updateAlbums(state, opened);
+      settings.put(state, workspaceSetting("project", entry.id));
+      if (folder) settings.put(folder, workspaceSetting("album-folder", entry.id));
       return [...existing, entry];
     });
     activateWorkspace(entry.id);
-    return {entries, active: workspace};
+    sources = opened;
+    rememberedFolder = folder;
+    return {entries, active: workspace, folder: {name: root, opened: [...opened.keys()], temporary: !folder}};
   }
 
   function preference(key, value) {
@@ -190,17 +200,26 @@
   async function openFiles(files, asFolders, progress) {
     const root = asFolders ? files[0]?.webkitRelativePath.split("/")[0] : null;
     if (asFolders && !root) throw new Error("Choose a photo folder.");
-    const entries = files.map((file) => ({
-      file, path: root ? file.webkitRelativePath.slice(root.length + 1) : file.name,
-    }));
-    return openEntries(entries, root, progress);
+    const opened = await scanEntries(folderEntries(files, root), root, progress);
+    if (!opened.size) throw new Error("No supported photos found.");
+    return openScanned(opened);
   }
 
-  async function openEntries(entries, root, progress) {
+  function folderEntries(files, root) {
+    return files.map((file) => ({
+      file, path: root ? file.webkitRelativePath.slice(root.length + 1) : file.name,
+    }));
+  }
+
+  async function scanEntries(entries, root, progress) {
     const groups = new Map();
     if (root !== null) {
       const loose = [];
       for (const {file, path} of entries) {
+        if (!path.includes("/") && /\.zip$/i.test(path)) {
+          loose.push(file);
+          continue;
+        }
         if (root.toLowerCase() === "albums") {
           const slash = path.indexOf("/");
           if (slash < 0) {
@@ -249,38 +268,43 @@
       }
       if (photos.size) opened.set(key, photos);
     }
-    if (!opened.size) throw new Error("No supported photos found.");
-    await project((state) => {
-      for (const [key, photos] of opened) {
-        const album = addAlbum(state, key);
-        album.photos = Array.from(photos.values(), ({path, date}) => ({path, date: date ?? null}));
-      }
-    });
+    return opened;
+  }
+
+  function updateAlbums(state, opened) {
+    for (const [key, photos] of opened) {
+      const album = addAlbum(state, key);
+      album.photos = Array.from(photos.values(), ({path, date}) => ({path, date: date ?? null}));
+    }
+  }
+
+  async function openScanned(opened) {
+    await project((state) => updateAlbums(state, opened));
     for (const [key, photos] of opened) sources.set(key, photos);
     return Array.from(opened.keys());
   }
 
   let rememberedFolder = null;
 
-  async function readFolder(folder, progress) {
+  async function scanFolder(folder, progress) {
     const entries = [];
     async function collect(directory, prefix) {
       for await (const entry of directory.values()) {
         if (entry.kind === "directory") {
           await collect(entry, prefix + entry.name + "/");
         } else if (photoType.test(entry.name) ||
-                    (!prefix && folder.name.toLowerCase() === "albums" && /\.zip$/i.test(entry.name))) {
+                    (!prefix && /\.zip$/i.test(entry.name))) {
           entries.push({path: prefix + entry.name, file: await entry.getFile()});
         }
       }
     }
     await collect(folder, "");
-    return openEntries(entries, folder.name, progress);
+    return scanEntries(entries, folder.name, progress);
   }
 
   async function chooseFolder(progress) {
     const folder = await window.showDirectoryPicker({mode: "read"});
-    const opened = await readFolder(folder, progress);
+    const opened = await openScanned(await scanFolder(folder, progress));
     await setting(workspaceSetting("album-folder"), null, () => folder);
     rememberedFolder = folder;
     return {name: folder.name, opened};
@@ -292,7 +316,8 @@
     const folder = rememberedFolder;
     const permission = reconnect ? await folder.requestPermission({mode: "read"})
       : await folder.queryPermission({mode: "read"});
-    return {name: folder.name, opened: permission === "granted" ? await readFolder(folder, progress) : null};
+    return {name: folder.name, opened: permission === "granted"
+      ? await openScanned(await scanFolder(folder, progress)) : null};
   }
 
   async function readArchives(files, groups) {

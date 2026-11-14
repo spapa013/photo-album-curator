@@ -350,15 +350,21 @@ if (browser) {
   const workspaceSelect = byId("browser-workspace");
   const workspaceForm = byId("browser-workspace-form");
   const workspaceName = byId("browser-workspace-name");
+  const workspaceFolderInput = byId("browser-workspace-folder-input");
   const newWorkspace = byId("browser-new-workspace");
   const progress = (message) => { status.textContent = message; };
   function showWorkspaces({entries, active}) {
-    workspaceSelect.replaceChildren(...entries.map(({id, name}) => new Option(name, id)));
+    workspaceSelect.replaceChildren(...entries.map(({id, name, folderName}) => {
+      const option = new Option(name, id);
+      if (folderName) option.dataset.folder = folderName;
+      return option;
+    }));
     workspaceSelect.value = active;
     workspaceSelect.dataset.activeIndex = workspaceSelect.selectedIndex;
   }
   async function openWorkspace(select) {
-    showWorkspaces(await select());
+    const result = await select();
+    showWorkspaces(result);
     album = null;
     state = null;
     index = 0;
@@ -367,13 +373,21 @@ if (browser) {
     reconnect.hidden = true;
     progress("Photos stay on your device");
     renderPhoto();
-    await restoreFolder(false);
+    if (result.folder) {
+      showFolder(result.folder);
+      await reloadAlbums(result.folder.opened[0]);
+    } else {
+      await restoreFolder(false);
+    }
   }
   workspaceSelect.addEventListener("change", () => {
     const selected = workspaceSelect.value;
     workspaceSelect.selectedIndex = Number(workspaceSelect.dataset.activeIndex);
     savePrinted();
-    if (!saving && !pending.length) perform(() => openWorkspace(() => browser.selectWorkspace(selected)));
+    if (!saving && !pending.length) {
+      closeWorkspaceForm();
+      perform(() => openWorkspace(() => browser.selectWorkspace(selected)));
+    }
   });
   newWorkspace.addEventListener("click", () => {
     workspaceForm.hidden = !workspaceForm.hidden;
@@ -384,22 +398,53 @@ if (browser) {
     event.preventDefault();
     savePrinted();
     if (saving || pending.length) return;
-    perform(async () => {
-      await openWorkspace(() => browser.createWorkspace(workspaceName.value));
-      workspaceForm.reset();
-      workspaceForm.hidden = true;
-      newWorkspace.setAttribute("aria-expanded", "false");
-    });
+    if (!window.showDirectoryPicker) {
+      workspaceFolderInput.click();
+      return;
+    }
+    createWorkspace();
   });
+  workspaceFolderInput.addEventListener("change", () => {
+    const files = Array.from(workspaceFolderInput.files);
+    workspaceFolderInput.value = "";
+    if (files.length) createWorkspace(files);
+  });
+  function createWorkspace(files) {
+    if (saving || pending.length) return;
+    perform(async () => {
+      try {
+        await openWorkspace(() => browser.createWorkspace(workspaceName.value, progress, files));
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        if (error.name === "SecurityError" && !files) {
+          workspaceFolderInput.click();
+          return;
+        }
+        throw error;
+      }
+      closeWorkspaceForm();
+    });
+  }
+  function closeWorkspaceForm() {
+    workspaceForm.reset();
+    workspaceForm.hidden = true;
+    newWorkspace.setAttribute("aria-expanded", "false");
+  }
   function showFolder(result) {
     if (!result) return;
     reconnect.hidden = Boolean(result.opened);
-    progress(result.opened ? `Remembered folder: ${result.name}`
+    progress(result.temporary ? `Folder: ${result.name}. Select it again after refreshing.`
+      : result.opened ? `Remembered folder: ${result.name}`
       : `Reconnect ${result.name} to reopen your photos.`);
   }
   async function restoreFolder(ask) {
     try {
-      showFolder(await browser.restoreFolder(progress, ask));
+      const folder = await browser.restoreFolder(progress, ask);
+      showFolder(folder);
+      if (!folder) {
+        const name = workspaceSelect.selectedOptions[0]?.dataset.folder;
+        if (name) progress(`Open ${name} to reconnect this workspace's photos.`);
+      }
     } catch (error) {
       if (error.name !== "AbortError") {
         progress("Could not reopen the saved folder. Open the folder again.");

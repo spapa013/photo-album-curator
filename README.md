@@ -46,7 +46,7 @@ Select a photo to set or clear a custom position. Numbered photos come first, fo
 
 Open [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-album-curator/). Use **Open ZIP** to select one or more archives or **Open folder** to select a photo folder. Selecting the desktop app's entire `Albums` folder opens its subfolders and ZIPs as separate albums. The website serves the app code. Reading photos, editing assignments, and creating ZIPs happen on your device.
 
-Use **New workspace** to organize separate projects in the same browser profile. Each workspace has its own guests, assignments, print counts, final-album choices, last-viewed selections, and remembered folder. Existing browser projects appear in **Default workspace**.
+Use **New workspace**, enter a name, and choose its local photo folder. Each workspace has its own guests, assignments, print counts, final-album choices, last-viewed selections, and linked folder. The browser profile stores progress. **Download backup** lets you save a copy in any folder. Existing browser projects appear in **Default workspace**.
 
 To move over from v0.1.0, select **Import progress** and choose `Wedding Sorter.sqlite3` from your desktop workspace. Then open the original ZIPs or folders with the same names and structure. Import replaces the project in the active workspace. It brings over assignments, guests, print counts, and final-album choices.
 

@@ -31,7 +31,8 @@
         <button id="browser-new-workspace" type="button" aria-expanded="false" aria-controls="browser-workspace-form">New workspace</button>
         <form id="browser-workspace-form" class="row" hidden>
           <input id="browser-workspace-name" aria-label="Workspace name" placeholder="Workspace name" maxlength="80" required>
-          <button id="browser-create-workspace" type="submit">Create</button>
+          <button id="browser-create-workspace" type="submit">Choose folder and create</button>
+          <input id="browser-workspace-folder-input" type="file" webkitdirectory multiple hidden>
         </form>
       </div>
       <button id="browser-folder" type="button">Open folder</button>
