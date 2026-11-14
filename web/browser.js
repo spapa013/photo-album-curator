@@ -11,6 +11,10 @@
   }
 
   let sources = new Map();
+  let disk = null;
+  let externalHandles = new Map();
+  const projectFilename = "Photo Album Curator.json";
+  const diskLock = "photo-album-curator-workspace-file";
   let workspace = "default";
   const defaultWorkspace = {id: "default", name: "Default workspace"};
   const workspaceSetting = (key, id = workspace) => id === "default" ? key : `workspace:${id}:${key}`;
@@ -58,7 +62,201 @@
   }
 
   function project(update) {
+    if (disk) {
+      const target = disk;
+      return navigator.locks.request(diskLock, async () => {
+        const state = await readWorkspaceFile(target.file);
+        if (state.workspace?.id !== target.state.workspace.id) {
+          throw new Error("The project file changed. Set Workspace again.");
+        }
+        if (update) {
+          const next = update(state) ?? state;
+          await writeWorkspaceFile(target.file, next);
+          target.state = next;
+        } else {
+          target.state = state;
+        }
+        return target.state;
+      });
+    }
     return setting(workspaceSetting("project"), projectDefault(), update);
+  }
+
+  async function readWorkspaceFile(handle) {
+    const state = JSON.parse(await (await handle.getFile()).text());
+    if (!validBackup(state)) throw new Error(projectFilename + " is not a valid Curator project.");
+    return state;
+  }
+
+  async function writeWorkspaceFile(handle, state) {
+    const writer = await handle.createWritable();
+    try {
+      await writer.write(JSON.stringify(state, null, 2) + "\n");
+      await writer.close();
+    } catch (error) {
+      await writer.abort().catch(() => {});
+      throw error;
+    }
+  }
+
+  async function setWorkspace(copyBrowser, progress) {
+    const folder = await window.showDirectoryPicker({mode: "readwrite", id: "curator-workspace"});
+    const legacy = copyBrowser ? await project() : null;
+    const previousFolder = copyBrowser ? rememberedFolder : null;
+    const preferences = {};
+    if (legacy) {
+      for (const key of ["wedding-sorter-album", "wedding-sorter-final-guest",
+        ...legacy.albums.map(({key}) => `wedding-sorter-photo:${key}`)]) {
+        const value = preference(key);
+        if (value !== null) preferences[key] = value;
+      }
+    }
+    const opened = await navigator.locks.request(diskLock, async () => {
+      let file;
+      try {
+        file = await folder.getFileHandle(projectFilename);
+      } catch (error) {
+        if (error.name !== "NotFoundError") throw error;
+      }
+      if (file && copyBrowser) throw new Error("Choose a folder without an existing Curator project.");
+      if (!file) {
+        file = await folder.getFileHandle(projectFilename, {create: true});
+      }
+      const state = !copyBrowser && (await file.getFile()).size
+        ? await readWorkspaceFile(file) : legacy ?? projectDefault();
+      if (!state.workspace) {
+        state.workspace = {id: crypto.randomUUID(), rememberExternal: false, sources: [], preferences};
+        await writeWorkspaceFile(file, state);
+      }
+      return {folder, file, state};
+    });
+    disk = opened;
+    sources = new Map();
+    externalHandles = new Map();
+    rememberedFolder = null;
+    if (previousFolder) {
+      try {
+        if (await previousFolder.queryPermission({mode: "read"}) === "granted") {
+          await connectSource(previousFolder, "folder", progress);
+        }
+      } catch {
+        // The imported project is usable even when its previous source is unavailable.
+      }
+    }
+    await restoreSources(progress);
+    return diskStatus();
+  }
+
+  function diskStatus() {
+    if (!disk) return null;
+    const {rememberExternal, sources: records} = disk.state.workspace;
+    return {name: disk.folder.name, rememberExternal, sources: records.map((record) => ({
+      id: record.id, name: record.name,
+      available: record.albums.length > 0 && record.albums.every((key) => sources.has(key)),
+      reconnect: record.relative === null && rememberExternal && externalHandles.has(record.id),
+    }))};
+  }
+
+  const handlesKey = (id) => `workspace-handles:${id}`;
+
+  async function saveHandles(state) {
+    await navigator.locks.request(diskLock, async () => {
+      const current = await readWorkspaceFile(disk.file);
+      if (current.workspace.id !== state.workspace.id || !current.workspace.rememberExternal) return;
+      await setting(handlesKey(state.workspace.id), null, (previous) =>
+        new Map([...(previous ?? []), ...externalHandles]));
+    });
+  }
+
+  async function rememberExternal(enabled) {
+    const target = disk;
+    if (!target) return;
+    const state = await project((state) => { state.workspace.rememberExternal = enabled; });
+    if (enabled) await saveHandles(state);
+    else await navigator.locks.request(diskLock, async () => {
+      const current = await readWorkspaceFile(target.file);
+      if (!current.workspace.rememberExternal) {
+        await setting(handlesKey(state.workspace.id), null, () => new Map());
+      }
+    });
+  }
+
+  async function scanSource(handle, kind, progress) {
+    if (kind === "folder") return scanFolder(handle, progress);
+    const file = await handle.getFile();
+    return scanEntries([{file, path: file.name}], null, progress);
+  }
+
+  async function connectSource(handle, kind, progress) {
+    const relative = await disk.folder.resolve(handle);
+    const opened = await scanSource(handle, kind, progress);
+    const samePath = (record) => relative !== null
+      ? JSON.stringify(record.relative) === JSON.stringify(relative)
+      : record.relative === null && record.name === handle.name;
+    const state = await project((state) => {
+      const records = state.workspace.sources;
+      let record = records.find((item) => item.kind === kind && samePath(item));
+      const conflict = records.find((item) => item !== record &&
+        item.albums.some((key) => opened.has(key)));
+      if (conflict) throw new Error("An album with that name is linked to " + conflict.name + ".");
+      if (!record) {
+        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: []};
+        records.push(record);
+      }
+      record.albums = Array.from(new Set([...record.albums, ...opened.keys()]));
+      updateAlbums(state, opened);
+    });
+    if (relative === null) {
+      const record = state.workspace.sources.find((item) => item.kind === kind && samePath(item));
+      externalHandles.set(record.id, handle);
+      if (state.workspace.rememberExternal) await saveHandles(state);
+    }
+    for (const [key, photos] of opened) sources.set(key, photos);
+    return [...opened.keys()];
+  }
+
+  async function chooseSource(kind, progress) {
+    const handles = kind === "folder"
+      ? [await window.showDirectoryPicker({mode: "read", id: "curator-albums"})]
+      : await window.showOpenFilePicker({multiple: true, id: "curator-zips",
+        types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}]});
+    const opened = [];
+    for (const handle of handles) opened.push(...await connectSource(handle, kind, progress));
+    return opened;
+  }
+
+  async function relativeHandle(record) {
+    let handle = disk.folder;
+    for (const [index, name] of record.relative.entries()) {
+      handle = record.kind === "zip" && index === record.relative.length - 1
+        ? await handle.getFileHandle(name) : await handle.getDirectoryHandle(name);
+    }
+    return handle;
+  }
+
+  async function restoreSources(progress) {
+    const {workspace} = disk.state;
+    if (workspace.rememberExternal) {
+      const saved = await setting(handlesKey(workspace.id), null);
+      for (const [id, handle] of saved ?? []) externalHandles.set(id, handle);
+    }
+    for (const record of workspace.sources) {
+      try {
+        const handle = record.relative === null ? externalHandles.get(record.id) : await relativeHandle(record);
+        if (handle && await handle.queryPermission({mode: "read"}) === "granted") {
+          await openScanned(await scanSource(handle, record.kind, progress));
+        }
+      } catch {
+        // The source remains listed so the user can reconnect it after a move or permission change.
+      }
+    }
+  }
+
+  async function reconnectSource(id, progress) {
+    const handle = externalHandles.get(id);
+    if (!handle || await handle.requestPermission({mode: "read"}) !== "granted") return;
+    const record = disk.state.workspace.sources.find((item) => item.id === id);
+    if (record) await openScanned(await scanSource(handle, record.kind, progress));
   }
 
   async function workspaces() {
@@ -67,6 +265,11 @@
   }
 
   function activateWorkspace(id) {
+    if (disk) {
+      disk = null;
+      sources = new Map();
+      externalHandles = new Map();
+    }
     if (id !== workspace) {
       workspace = id;
       sources = new Map();
@@ -106,6 +309,10 @@
   }
 
   function preference(key, value) {
+    if (disk) {
+      if (value === undefined) return disk.state.workspace.preferences[key] ?? null;
+      return project((state) => { state.workspace.preferences[key] = String(value); });
+    }
     const scoped = workspaceSetting(key);
     if (value === undefined) return localStorage.getItem(scoped);
     localStorage.setItem(scoped, value);
@@ -415,6 +622,7 @@
   }
 
   async function request(path, data) {
+    if (path === "/api/preference") return preference(data.key, data.value);
     if (path === "/api/albums") {
       const state = await project();
       return state.albums.map(({key}) => ({id: key, label: albumLabel(key)}))
@@ -596,6 +804,7 @@
     const pairs = (rows, valid) => Array.isArray(rows) && rows.every((row) =>
       Array.isArray(row) && row.length === 2 && typeof row[0] === "string" && valid(row[1]));
     return state?.format === "photo-album-curator" && state.version === 1 &&
+      (state.workspace === undefined || validWorkspace(state.workspace)) &&
       Array.isArray(state.guests) && state.guests.every((guest) => guest && Number.isSafeInteger(guest.id) &&
         guest.id > 0 && typeof guest.name === "string" && guest.name.length > 0) &&
       Array.isArray(state.albums) && state.albums.every((album) => album && typeof album.key === "string" &&
@@ -612,10 +821,28 @@
         (choice.rank === null || (Number.isSafeInteger(choice.rank) && choice.rank > 0)));
   }
 
+  function validWorkspace(value) {
+    return value && typeof value.id === "string" && value.id.length > 0 &&
+      typeof value.rememberExternal === "boolean" &&
+      value.preferences && typeof value.preferences === "object" && !Array.isArray(value.preferences) &&
+      Object.values(value.preferences).every((preference) => typeof preference === "string") &&
+      Array.isArray(value.sources) && value.sources.every((record) => record &&
+        typeof record.id === "string" && typeof record.name === "string" &&
+        ["folder", "zip"].includes(record.kind) &&
+        (record.relative === null || (Array.isArray(record.relative) &&
+          record.relative.every((name) => typeof name === "string" && name !== "." && name !== ".." &&
+            name.length > 0 && !name.includes("/") && !name.includes("\\")))) &&
+        Array.isArray(record.albums) && record.albums.every((key) => typeof key === "string"));
+  }
+
   async function importProject(file) {
     const state = /\.json$/i.test(file.name) ? JSON.parse(await file.text()) : await importSqlite(file);
     if (!validBackup(state)) throw new Error("The file is not a valid Photo Album Curator project.");
     await project((previous) => {
+      if (previous.workspace) {
+        state.workspace = {...previous.workspace,
+          preferences: state.workspace?.preferences ?? previous.workspace.preferences};
+      }
       for (const album of state.albums) {
         const existing = previous.albums.find(({key}) => key === album.key);
         if (sources.has(album.key) && existing) album.photos = existing.photos;
@@ -648,10 +875,14 @@
   window.browserCurator = {
     request, preview, render, showFinal, closeFinal, openFiles, importProject,
     chooseFolder, restoreFolder,
-    createWorkspace, selectWorkspace, preference,
+    createWorkspace, selectWorkspace, preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource,
     restoreWorkspace: () => selectWorkspace(localStorage.getItem("curator-active-workspace")),
     available: (key) => sources.has(key),
     async backup() {
+      if (disk) {
+        download(new Blob([JSON.stringify(await project())], {type: "application/json"}), projectFilename);
+        return;
+      }
       const {entries, active} = await workspaces();
       const {name} = entries.find(({id}) => id === active);
       download(new Blob([JSON.stringify(await project())], {type: "application/json"}), safeName(name) + ".json");

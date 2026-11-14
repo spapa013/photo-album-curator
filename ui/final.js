@@ -161,7 +161,7 @@ function render() {
 async function openGuest(guest) {
   plan = await request("open", {guest});
   guestSelect.value = guest;
-  if (browser) browser.preference("wedding-sorter-final-guest", guest);
+  if (browser) await browser.preference("wedding-sorter-final-guest", guest);
   else localStorage.setItem("wedding-sorter-final-guest", guest);
   feedback.textContent = "";
   render();

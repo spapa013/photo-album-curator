@@ -12,7 +12,19 @@ const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
 function preference(key, value) {
-  if (browser) return browser.preference(key, value);
+  if (browser) {
+    if (value === undefined) return browser.preference(key);
+    if (browser.diskStatus()) {
+      const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
+      const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
+      if (String(latest) !== String(value)) {
+        if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
+        queueSave("/api/preference", {key, value});
+      }
+      return;
+    }
+    return browser.preference(key, value);
+  }
   if (value === undefined) return localStorage.getItem(key);
   localStorage.setItem(key, value);
 }
@@ -46,9 +58,13 @@ function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
   if (browser) {
     for (const id of ["browser-workspace", "browser-create-workspace",
+      "browser-set-workspace", "browser-copy-workspace", "browser-remember-external",
       "browser-folder", "browser-reconnect", "browser-zip",
       "browser-import", "browser-backup"]) {
       byId(id).disabled = busy || saving || pending.length > 0;
+    }
+    for (const button of byId("browser-source-list").querySelectorAll("button")) {
+      button.disabled = busy || saving || pending.length > 0;
     }
   }
   albumSelect.disabled = busy || saving || albumSelect.options.length === 0;
@@ -78,6 +94,7 @@ async function perform(action) {
     busy = false;
     byId("loading").hidden = true;
     updateControls();
+    if (!saveFailed) savePending();
   }
 }
 
@@ -93,7 +110,7 @@ async function savePending() {
       const {path, changes} = pending[0];
       await request(path, {...changes, album, revision: state.revision});
       // Each successful write advances our revision once, even if another tab saves before the response.
-      state.revision += 1;
+      if (path !== "/api/preference") state.revision += 1;
       pending.shift();
     }
     feedback.textContent = "Saved";
@@ -344,7 +361,7 @@ if (browser) {
   byId("browser-tools").hidden = false;
   byId("final-link").hidden = false;
   byId("local-file-help").remove();
-  byId("empty").textContent = "Open a photo folder or ZIP to get started.";
+  byId("empty").textContent = "Set Workspace to choose where to save your project, then open a photo folder or ZIP.";
   const status = byId("browser-project-status");
   const reconnect = byId("browser-reconnect");
   const workspaceSelect = byId("browser-workspace");
@@ -352,7 +369,69 @@ if (browser) {
   const workspaceName = byId("browser-workspace-name");
   const workspaceFolderInput = byId("browser-workspace-folder-input");
   const newWorkspace = byId("browser-new-workspace");
+  const remember = byId("browser-remember-external");
+  const sourceList = byId("browser-source-list");
   const progress = (message) => { status.textContent = message; };
+  function showDiskStatus() {
+    const disk = browser.diskStatus();
+    byId("browser-legacy-workspaces").hidden = Boolean(disk);
+    byId("browser-copy-workspace").hidden = Boolean(disk);
+    byId("browser-remember-label").hidden = !disk;
+    if (!disk) return;
+    reconnect.hidden = true;
+    remember.checked = disk.rememberExternal;
+    progress(`Workspace: ${disk.name} · Saving to Photo Album Curator.json`);
+    sourceList.hidden = !disk.sources.length;
+    sourceList.replaceChildren(...disk.sources.map((source) => {
+      const row = document.createElement("li");
+      row.textContent = source.name + (source.available ? "" : " · Reopen source");
+      if (!source.available && source.reconnect) {
+        const button = document.createElement("button");
+        button.type = "button";
+        button.textContent = "Reconnect";
+        button.addEventListener("click", () => perform(async () => {
+          await browser.reconnectSource(source.id, progress);
+          await reloadAlbums();
+          showDiskStatus();
+        }));
+        row.append(button);
+      }
+      return row;
+    }));
+  }
+  for (const [id, copy] of [["browser-set-workspace", false], ["browser-copy-workspace", true]]) {
+    byId(id).addEventListener("click", () => {
+      savePrinted();
+      if (saving || pending.length) return;
+      if (!window.showDirectoryPicker || !navigator.locks) {
+        errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
+        errorBox.hidden = false;
+        return;
+      }
+      perform(async () => {
+        try {
+          await browser.setWorkspace(copy, progress);
+        } catch (error) {
+          if (error.name === "AbortError") return;
+          throw error;
+        }
+        album = null;
+        state = null;
+        showDiskStatus();
+        await reloadAlbums();
+      });
+    });
+  }
+  remember.addEventListener("change", () => {
+    const enabled = remember.checked;
+    perform(async () => {
+      try {
+        await browser.rememberExternal(enabled);
+      } finally {
+        showDiskStatus();
+      }
+    });
+  });
   function showWorkspaces({entries, active}) {
     workspaceSelect.replaceChildren(...entries.map(({id, name, folderName}) => {
       const option = new Option(name, id);
@@ -459,6 +538,21 @@ if (browser) {
   for (const kind of ["folder", "zip", "import"]) {
     const input = byId("browser-" + kind + "-input");
     byId("browser-" + kind).addEventListener("click", () => {
+      if (browser.diskStatus() && kind !== "import") {
+        savePrinted();
+        if (saving || pending.length) return;
+        perform(async () => {
+          try {
+            const opened = await browser.chooseSource(kind, progress);
+            await reloadAlbums(opened.includes(album) ? album : opened[0]);
+          } catch (error) {
+            if (error.name !== "AbortError") throw error;
+          } finally {
+            showDiskStatus();
+          }
+        });
+        return;
+      }
       if (kind !== "folder" || !window.showDirectoryPicker) {
         input.click();
         return;

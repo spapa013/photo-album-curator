@@ -26,6 +26,13 @@
 
     <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
       <div class="browser-workspace row">
+        <button id="browser-set-workspace" type="button">Set Workspace</button>
+        <button id="browser-copy-workspace" type="button">Save current project to folder</button>
+        <label id="browser-remember-label" hidden>
+          <input id="browser-remember-external" type="checkbox"> Remember external albums
+        </label>
+      </div>
+      <div id="browser-legacy-workspaces" class="browser-workspace row">
         <label for="browser-workspace">Workspace</label>
         <select id="browser-workspace" disabled></select>
         <button id="browser-new-workspace" type="button" aria-expanded="false" aria-controls="browser-workspace-form">New workspace</button>
@@ -44,6 +51,7 @@
       <input id="browser-zip-input" type="file" accept=".zip" multiple hidden>
       <input id="browser-import-input" type="file" accept=".sqlite3,.db,.sqlite,.json" hidden>
       <p id="browser-project-status" class="hint" role="status">Photos stay on your device</p>
+      <ul id="browser-source-list" hidden></ul>
     </section>
     <dialog id="browser-final" aria-label="Final albums"><iframe title="Final albums"></iframe></dialog>
 
