@@ -24,6 +24,18 @@
       </div>
     </header>
 
+    <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
+      <button id="browser-folder" type="button">Open folder</button>
+      <button id="browser-zip" type="button">Open ZIP</button>
+      <button id="browser-import" type="button">Import progress</button>
+      <button id="browser-backup" type="button">Download backup</button>
+      <input id="browser-folder-input" type="file" webkitdirectory multiple hidden>
+      <input id="browser-zip-input" type="file" accept=".zip" multiple hidden>
+      <input id="browser-import-input" type="file" accept=".sqlite3,.db,.sqlite,.json" hidden>
+      <p id="browser-project-status" class="hint" role="status">Photos stay on this device. Reopen sources after a page refresh.</p>
+    </section>
+    <dialog id="browser-final" aria-label="Final albums"><iframe title="Final albums"></iframe></dialog>
+
     <p id="error" class="notice error" role="alert" hidden></p>
     <button id="retry-save" type="button" hidden>Retry saving</button>
     <p id="local-file-help" class="notice" hidden>

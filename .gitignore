@@ -6,3 +6,5 @@ __pycache__/
 /Final Albums/
 .DS_Store
 Thumbs.db
+
+/dist/

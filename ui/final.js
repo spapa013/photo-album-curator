@@ -8,11 +8,13 @@ const search = byId("final-search");
 const image = byId("final-image");
 const feedback = byId("final-feedback");
 const errorBox = byId("final-error");
+const browser = window.browserCurator;
 let plan = null;
 let selected = null;
 let busy = false;
 
 async function request(path, data) {
+  if (browser) return browser.request("/api/final/" + path, data);
   const response = await fetch("/api/final/" + path, data === undefined ? {} : {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -70,12 +72,15 @@ function renderDetail() {
   byId("final-detail").hidden = !photo;
   if (!photo) {
     image.removeAttribute("src");
+    if (browser) browser.preview(image, byId("final-preview-error"), null, null);
     return;
   }
   byId("final-filename").textContent = photo.path;
   byId("final-source").textContent = sourceLabel(photo);
   const src = "/photo?" + new URLSearchParams({album: photo.album, path: photo.path});
-  if (photo.available && image.getAttribute("src") !== src) {
+  if (browser) {
+    browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
+  } else if (photo.available && image.getAttribute("src") !== src) {
     image.hidden = false;
     byId("final-preview-error").hidden = true;
     image.src = src;
@@ -178,6 +183,13 @@ byId("final-rank-form").addEventListener("submit", (event) => {
 byId("final-clear-rank").addEventListener("click", () => edit(currentPhoto(), "unrank"));
 byId("final-render").addEventListener("click", () => {
   perform(async () => {
+    if (browser) {
+      const result = await browser.render(plan.guest, plan.token, plan.name, (message) => {
+        feedback.textContent = message;
+      });
+      feedback.textContent = result ? `Exported ${result.count} photos to ${result.name}` : "";
+      return;
+    }
     const result = await request("render", {guest: plan.guest, token: plan.token});
     feedback.textContent = `Rendered ${result.count} photos to ${result.path}`;
   }, "Rendering album…");
@@ -186,6 +198,14 @@ image.addEventListener("error", () => {
   image.hidden = true;
   byId("final-preview-error").hidden = false;
 });
+
+if (browser) {
+  byId("final-render").textContent = "Download ZIP";
+  document.querySelector("header a").addEventListener("click", (event) => {
+    event.preventDefault();
+    browser.closeFinal();
+  });
+}
 
 perform(async () => {
   const guests = await request("guests");

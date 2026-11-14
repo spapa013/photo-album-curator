@@ -41,3 +41,15 @@ Open **Final albums** and pick a guest. Their assigned photos start included. Sh
 Select a photo to set or clear a custom position. Numbered photos come first, followed by included photos in capture order. Photos without capture timestamps follow in filename order.
 
 **Render album** creates a folder such as `Final Albums/Sam/Render 001`. Each image gets a sortable prefix such as `0001 - `. A later render creates the next numbered folder so you can keep earlier versions.
+
+## Use in your browser
+
+Open [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-album-curator/). Use **Open ZIP** to select one or more archives or **Open folder** to select a photo folder. Selecting the desktop app's entire `Albums` folder opens its subfolders and ZIPs as separate albums. The website serves the app code. Reading photos, editing assignments, and creating ZIPs happen on your device.
+
+To move over from v0.1.0, select **Import progress** and choose `Wedding Sorter.sqlite3` from your desktop workspace. Then open the original ZIPs or folders with the same names and structure. Import replaces the project saved in that browser. It brings over assignments, guests, print counts, and final-album choices.
+
+Progress saves in the current browser profile. Reopen your photo sources after refreshing the page, and use **Download backup** to keep a portable copy of your progress. The backup contains project data and filenames.
+
+In **Final albums**, choose a guest and select **Download ZIP**. The archive contains the included originals with numbered filenames. Browsers that offer a save dialog can stream the archive directly to disk. Other browsers assemble the ZIP before downloading, which may limit very large exports.
+
+To build the static site locally, run `python3 web/build.py` and serve the generated `dist/` directory over HTTP. The GitHub Pages workflow publishes only that directory.

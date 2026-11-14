@@ -10,6 +10,7 @@ const printedInput = byId("printed");
 const printList = byId("print-list");
 const feedback = byId("feedback");
 const errorBox = byId("error");
+const browser = window.browserCurator;
 let album = null;
 let state = null;
 let index = 0;
@@ -20,6 +21,7 @@ let printTimer = null;
 const pending = [];
 
 async function request(path, body) {
+  if (browser) return browser.request(path, body);
   const options = body === undefined ? {} : {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -37,6 +39,11 @@ function currentPhoto() {
 
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
+  if (browser) {
+    for (const id of ["browser-folder", "browser-zip", "browser-import", "browser-backup"]) {
+      byId(id).disabled = busy || saving || pending.length > 0;
+    }
+  }
   albumSelect.disabled = busy || saving || albumSelect.options.length === 0;
   byId("reload").disabled = busy || saving;
   byId("previous").disabled = busy || index <= 0;
@@ -188,13 +195,16 @@ function renderPhoto() {
   byId("empty").hidden = Boolean(photo);
   if (!photo) {
     image.removeAttribute("src");
+    if (browser) browser.preview(image, byId("preview-error"), album, null);
     return;
   }
   jump.selectedIndex = index;
   byId("filename").textContent = photo.path;
   byId("date").textContent = photo.date ? photo.date.replace("T", " ") : "No capture timestamp";
   const src = "/photo?" + new URLSearchParams({album, path: photo.path});
-  if (image.getAttribute("src") !== src) {
+  if (browser) {
+    browser.preview(image, byId("preview-error"), album, photo.path);
+  } else if (image.getAttribute("src") !== src) {
     image.hidden = false;
     byId("preview-error").hidden = true;
     image.src = src;
@@ -226,7 +236,8 @@ async function openAlbum(key) {
   localStorage.setItem("wedding-sorter-album", key);
   albumSelect.value = key;
   guestName.value = "";
-  image.removeAttribute("src");
+  if (browser) browser.preview(image, byId("preview-error"), album, null);
+  else image.removeAttribute("src");
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));
   const lastPhoto = localStorage.getItem(`wedding-sorter-photo:${key}`);
@@ -235,12 +246,14 @@ async function openAlbum(key) {
   showPhoto(Math.max(position, 0));
 }
 
-async function reloadAlbums() {
+async function reloadAlbums(preferredAlbum) {
   const choices = await request("/api/albums");
-  const preferred = album ?? localStorage.getItem("wedding-sorter-album");
+  const preferred = preferredAlbum ?? album ?? localStorage.getItem("wedding-sorter-album");
   const choice = choices.find(({id}) => id === preferred) ?? choices[0];
-  albumSelect.replaceChildren(...choices.map(({id, label}) => new Option(label, id)));
-  await openAlbum(choice.id);
+  albumSelect.replaceChildren(...choices.map(({id, label}) =>
+    new Option(browser && !browser.available(id) ? label + " (reopen source)" : label, id)));
+  if (choice) await openAlbum(choice.id);
+  else byId("empty").hidden = false;
 }
 
 function navigate(position) {
@@ -312,6 +325,56 @@ window.addEventListener("beforeunload", (event) => {
     event.returnValue = true;
   }
 });
+
+if (browser) {
+  byId("browser-tools").hidden = false;
+  byId("final-link").hidden = false;
+  byId("local-file-help").remove();
+  byId("empty").textContent = "Open a photo folder or ZIP to get started.";
+  const status = byId("browser-project-status");
+  for (const kind of ["folder", "zip", "import"]) {
+    const input = byId("browser-" + kind + "-input");
+    byId("browser-" + kind).addEventListener("click", () => input.click());
+    input.addEventListener("change", () => {
+      const files = Array.from(input.files);
+      input.value = "";
+      if (!files.length) return;
+      savePrinted();
+      if (saving || pending.length) return;
+      perform(async () => {
+        if (kind === "import") {
+          if (!window.confirm("Replace this browser's saved project with the imported project?")) return;
+          const counts = await browser.importProject(files[0]);
+          await reloadAlbums();
+          status.textContent = `Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`;
+        } else {
+          try {
+            const opened = await browser.openFiles(files, kind === "folder", (message) => {
+              status.textContent = message;
+            });
+            await reloadAlbums(opened[0]);
+          } finally {
+            status.textContent = "Photos stay on this device. Reopen sources after a page refresh.";
+          }
+        }
+      });
+    });
+  }
+  byId("browser-backup").addEventListener("click", () => {
+    savePrinted();
+    if (saving || pending.length) return;
+    perform(() => browser.backup());
+  });
+  byId("final-link").addEventListener("click", (event) => {
+    event.preventDefault();
+    savePrinted();
+    if (!busy && !saving && !pending.length) browser.showFinal();
+  });
+  byId("browser-final").addEventListener("close", () => {
+    byId("browser-final").querySelector("iframe").removeAttribute("src");
+    perform(reloadAlbums);
+  });
+}
 
 if (window.location.protocol === "file:") {
   byId("loading").hidden = true;
