@@ -11,6 +11,11 @@ const printList = byId("print-list");
 const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
+function preference(key, value) {
+  if (browser) return browser.preference(key, value);
+  if (value === undefined) return localStorage.getItem(key);
+  localStorage.setItem(key, value);
+}
 let album = null;
 let state = null;
 let index = 0;
@@ -40,7 +45,9 @@ function currentPhoto() {
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
   if (browser) {
-    for (const id of ["browser-folder", "browser-reconnect", "browser-zip", "browser-import", "browser-backup"]) {
+    for (const id of ["browser-workspace", "browser-new-workspace", "browser-workspace-name",
+      "browser-create-workspace", "browser-folder", "browser-reconnect", "browser-zip",
+      "browser-import", "browser-backup"]) {
       byId(id).disabled = busy || saving || pending.length > 0;
     }
   }
@@ -217,7 +224,7 @@ function renderPhoto() {
 
 function showPhoto(position) {
   index = position;
-  if (currentPhoto()) localStorage.setItem(`wedding-sorter-photo:${album}`, currentPhoto().path);
+  if (currentPhoto()) preference(`wedding-sorter-photo:${album}`, currentPhoto().path);
   renderPhoto();
 }
 
@@ -233,14 +240,14 @@ async function openAlbum(key) {
   pending.length = 0;
   saveFailed = false;
   feedback.textContent = "";
-  localStorage.setItem("wedding-sorter-album", key);
+  preference("wedding-sorter-album", key);
   albumSelect.value = key;
   guestName.value = "";
   if (browser) browser.preview(image, byId("preview-error"), album, null);
   else image.removeAttribute("src");
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));
-  const lastPhoto = localStorage.getItem(`wedding-sorter-photo:${key}`);
+  const lastPhoto = preference(`wedding-sorter-photo:${key}`);
   let position = state.photos.findIndex((photo) => photo.path === lastPhoto);
   if (position < 0) position = state.photos.findIndex((photo) => photo.path === state.resume);
   showPhoto(Math.max(position, 0));
@@ -248,12 +255,19 @@ async function openAlbum(key) {
 
 async function reloadAlbums(preferredAlbum) {
   const choices = await request("/api/albums");
-  const preferred = preferredAlbum ?? album ?? localStorage.getItem("wedding-sorter-album");
+  const preferred = preferredAlbum ?? album ?? preference("wedding-sorter-album");
   const choice = choices.find(({id}) => id === preferred) ?? choices[0];
   albumSelect.replaceChildren(...choices.map(({id, label}) =>
     new Option(browser && !browser.available(id) ? label + " (reopen source)" : label, id)));
   if (choice) await openAlbum(choice.id);
-  else byId("empty").hidden = false;
+  else {
+    album = null;
+    state = null;
+    index = 0;
+    guestName.value = "";
+    feedback.textContent = "";
+    renderPhoto();
+  }
 }
 
 function navigate(position) {
@@ -333,7 +347,50 @@ if (browser) {
   byId("empty").textContent = "Open a photo folder or ZIP to get started.";
   const status = byId("browser-project-status");
   const reconnect = byId("browser-reconnect");
+  const workspaceSelect = byId("browser-workspace");
+  const workspaceForm = byId("browser-workspace-form");
+  const workspaceName = byId("browser-workspace-name");
+  const newWorkspace = byId("browser-new-workspace");
   const progress = (message) => { status.textContent = message; };
+  function showWorkspaces({entries, active}) {
+    workspaceSelect.replaceChildren(...entries.map(({id, name}) => new Option(name, id)));
+    workspaceSelect.value = active;
+    workspaceSelect.dataset.activeIndex = workspaceSelect.selectedIndex;
+  }
+  async function openWorkspace(select) {
+    showWorkspaces(await select());
+    album = null;
+    state = null;
+    index = 0;
+    guestName.value = "";
+    feedback.textContent = "";
+    reconnect.hidden = true;
+    progress("Photos stay on your device");
+    renderPhoto();
+    await restoreFolder(false);
+  }
+  workspaceSelect.addEventListener("change", () => {
+    const selected = workspaceSelect.value;
+    workspaceSelect.selectedIndex = Number(workspaceSelect.dataset.activeIndex);
+    savePrinted();
+    if (!saving && !pending.length) perform(() => openWorkspace(() => browser.selectWorkspace(selected)));
+  });
+  newWorkspace.addEventListener("click", () => {
+    workspaceForm.hidden = !workspaceForm.hidden;
+    newWorkspace.setAttribute("aria-expanded", String(!workspaceForm.hidden));
+    if (!workspaceForm.hidden) workspaceName.focus();
+  });
+  workspaceForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    savePrinted();
+    if (saving || pending.length) return;
+    perform(async () => {
+      await openWorkspace(() => browser.createWorkspace(workspaceName.value));
+      workspaceForm.reset();
+      workspaceForm.hidden = true;
+      newWorkspace.setAttribute("aria-expanded", "false");
+    });
+  });
   function showFolder(result) {
     if (!result) return;
     reconnect.hidden = Boolean(result.opened);
@@ -382,7 +439,7 @@ if (browser) {
       if (saving || pending.length) return;
       perform(async () => {
         if (kind === "import") {
-          if (!window.confirm("Replace this browser's saved project with the imported project?")) return;
+          if (!window.confirm("Replace the active workspace's saved project with the imported project?")) return;
           const counts = await browser.importProject(files[0]);
           await reloadAlbums();
           status.textContent = `Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`;
@@ -411,7 +468,7 @@ if (browser) {
     byId("browser-final").querySelector("iframe").removeAttribute("src");
     perform(reloadAlbums);
   });
-  perform(() => restoreFolder(false));
+  perform(() => openWorkspace(browser.restoreWorkspace));
 }
 
 if (window.location.protocol === "file:") {

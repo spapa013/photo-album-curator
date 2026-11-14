@@ -25,6 +25,15 @@
     </header>
 
     <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
+      <div class="browser-workspace row">
+        <label for="browser-workspace">Workspace</label>
+        <select id="browser-workspace" disabled></select>
+        <button id="browser-new-workspace" type="button" aria-expanded="false" aria-controls="browser-workspace-form">New workspace</button>
+        <form id="browser-workspace-form" class="row" hidden>
+          <input id="browser-workspace-name" aria-label="Workspace name" placeholder="Workspace name" maxlength="80" required>
+          <button id="browser-create-workspace" type="submit">Create</button>
+        </form>
+      </div>
       <button id="browser-folder" type="button">Open folder</button>
       <button id="browser-reconnect" type="button" hidden>Reconnect folder</button>
       <button id="browser-zip" type="button">Open ZIP</button>

@@ -10,7 +10,10 @@
     return;
   }
 
-  const sources = new Map();
+  let sources = new Map();
+  let workspace = "default";
+  const defaultWorkspace = {id: "default", name: "Default workspace"};
+  const workspaceSetting = (key) => workspace === "default" ? key : `workspace:${workspace}:${key}`;
   const photoType = /\.(jpe?g|jfif|png|webp|gif|bmp|avif)$/i;
   const basename = (path) => path.split("/").at(-1);
   const compare = (a, b) => a < b ? -1 : a > b ? 1 : 0;
@@ -29,7 +32,7 @@
   });
   zip.configure({useWebWorkers: false});
 
-  async function project(update, key = "project") {
+  async function setting(key, fallback, update) {
     const db = await database;
     return new Promise((resolve, reject) => {
       const transaction = db.transaction("settings", update ? "readwrite" : "readonly");
@@ -39,7 +42,7 @@
       let error;
       request.onsuccess = () => {
         try {
-          value = request.result ?? (key === "project" ? projectDefault() : null);
+          value = request.result ?? fallback;
           if (update) {
             value = update(value) ?? value;
             settings.put(value, key);
@@ -52,6 +55,50 @@
       transaction.oncomplete = () => resolve(value);
       transaction.onabort = () => reject(error ?? transaction.error ?? new Error("Could not save progress."));
     });
+  }
+
+  function project(update) {
+    return setting(workspaceSetting("project"), projectDefault(), update);
+  }
+
+  async function workspaces() {
+    const entries = await setting("workspaces", [defaultWorkspace]);
+    return {entries, active: workspace};
+  }
+
+  function activateWorkspace(id) {
+    if (id !== workspace) {
+      workspace = id;
+      sources = new Map();
+      rememberedFolder = null;
+    }
+    localStorage.setItem("curator-active-workspace", id);
+  }
+
+  async function selectWorkspace(id) {
+    const {entries} = await workspaces();
+    activateWorkspace(entries.some((entry) => entry.id === id) ? id : defaultWorkspace.id);
+    return {entries, active: workspace};
+  }
+
+  async function createWorkspace(value) {
+    const name = value.trim().normalize("NFC");
+    if (!name || name.length > 80) throw new Error("Enter a workspace name up to 80 characters.");
+    const entry = {id: crypto.randomUUID(), name};
+    const entries = await setting("workspaces", [defaultWorkspace], (existing) => {
+      if (existing.some((item) => folded(item.name) === folded(name))) {
+        throw new Error("A workspace with that name already exists.");
+      }
+      return [...existing, entry];
+    });
+    activateWorkspace(entry.id);
+    return {entries, active: workspace};
+  }
+
+  function preference(key, value) {
+    const scoped = workspaceSetting(key);
+    if (value === undefined) return localStorage.getItem(scoped);
+    localStorage.setItem(scoped, value);
   }
 
   function captureDate(bytes) {
@@ -234,13 +281,13 @@
   async function chooseFolder(progress) {
     const folder = await window.showDirectoryPicker({mode: "read"});
     const opened = await readFolder(folder, progress);
-    await project(() => folder, "album-folder");
+    await setting(workspaceSetting("album-folder"), null, () => folder);
     rememberedFolder = folder;
     return {name: folder.name, opened};
   }
 
   async function restoreFolder(progress, reconnect = false) {
-    if (!reconnect) rememberedFolder = await project(null, "album-folder");
+    if (!reconnect) rememberedFolder = await setting(workspaceSetting("album-folder"), null);
     if (!rememberedFolder) return null;
     const folder = rememberedFolder;
     const permission = reconnect ? await folder.requestPermission({mode: "read"})
@@ -430,6 +477,8 @@
 
   const safeName = (name) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/, "") || "Album";
   async function render(guest, token, filename, progress) {
+    const activeWorkspace = workspace;
+    const photoSources = sources;
     // Call the native picker before awaiting the project transaction, while activation is available.
     const name = safeName(filename) + ".zip";
     let handle;
@@ -444,7 +493,10 @@
         if (error.name !== "SecurityError" && error.name !== "NotAllowedError") throw error;
       }
     }
-    const plan = finalPlan(await project(), guest);
+    if (workspace !== activeWorkspace) throw new Error("Reopen the guest album in its workspace.");
+    const snapshot = await project();
+    if (workspace !== activeWorkspace) throw new Error("Reopen the guest album in its workspace.");
+    const plan = finalPlan(snapshot, guest);
     if (plan.token !== token) throw new Error("Album choices changed. Reload this guest album.");
     const photos = plan.photos.filter(({included}) => included);
     if (!photos.length) throw new Error("Include at least one photo.");
@@ -455,7 +507,7 @@
     try {
       for (const [index, {album, path}] of photos.entries()) {
         progress("Exporting photo " + (index + 1) + " of " + photos.length + "…");
-        const photo = sources.get(album).get(path);
+        const photo = photoSources.get(album).get(path);
         const label = String(index + 1).padStart(width, "0") + " - " + safeName(basename(path));
         if (photo.file) {
           await writer.add(label, new zip.BlobReader(photo.file));
@@ -571,9 +623,13 @@
   window.browserCurator = {
     request, preview, render, showFinal, closeFinal, openFiles, importProject,
     chooseFolder, restoreFolder,
+    createWorkspace, selectWorkspace, preference,
+    restoreWorkspace: () => selectWorkspace(localStorage.getItem("curator-active-workspace")),
     available: (key) => sources.has(key),
     async backup() {
-      download(new Blob([JSON.stringify(await project())], {type: "application/json"}), "Photo Album Curator.json");
+      const {entries, active} = await workspaces();
+      const {name} = entries.find(({id}) => id === active);
+      download(new Blob([JSON.stringify(await project())], {type: "application/json"}), safeName(name) + ".json");
     },
   };
 })();
