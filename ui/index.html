@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Wedding Photo Sorter</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="top">
+      <div>
+        <h1>Wedding Photo Sorter</h1>
+        <p class="subtitle">Browse an album and choose who gets each photo.</p>
+      </div>
+      <div class="album-controls">
+        <label for="album">Album</label>
+        <div class="row">
+          <select id="album" disabled></select>
+          <button id="reload" type="button">Reload albums</button>
+          <a id="final-link" class="button-link" href="/final" hidden>Final albums</a>
+        </div>
+      </div>
+    </header>
+
+    <p id="error" class="notice error" role="alert" hidden></p>
+    <button id="retry-save" type="button" hidden>Retry saving</button>
+    <p id="local-file-help" class="notice" hidden>
+      Start <strong>Start Wedding Sorter.bat</strong> from the Wedding folder, then
+      <a href="http://127.0.0.1:8765/">open the running sorter</a>.
+    </p>
+    <p id="loading" role="status">Loading albums…</p>
+    <p id="empty" class="notice" hidden>
+      No supported photos here yet. Add photos, an album folder, or a ZIP file to
+      <strong>Albums</strong>, then select <strong>Reload albums</strong>.
+    </p>
+
+    <div id="workspace" hidden>
+      <div class="progress-row">
+        <label for="progress" id="progress-label"></label>
+        <progress id="progress"></progress>
+        <button id="show-prints" type="button">Print list</button>
+      </div>
+      <div class="layout">
+        <section class="card photo-card" aria-label="Current photo">
+          <div id="preview">
+            <img id="image" alt="Current album photo">
+            <p id="preview-error" hidden>This file could not be previewed.</p>
+          </div>
+          <div class="photo-info">
+            <strong id="filename"></strong>
+            <span id="date"></span>
+          </div>
+          <div class="navigation">
+            <div class="row">
+              <button id="previous" type="button">Previous</button>
+              <button id="next" type="button">Next</button>
+            </div>
+            <select id="jump" aria-label="Jump to photo"></select>
+          </div>
+          <p class="hint keyboard-hint">Use <kbd>←</kbd> and <kbd>→</kbd> to browse photos.</p>
+        </section>
+
+        <section class="card assignments" aria-labelledby="assignments-heading">
+          <div class="assignment-header">
+            <h2 id="assignments-heading">Destination albums</h2>
+            <span id="assignment-status" class="status"></span>
+          </div>
+          <p class="hint">Choose any destinations. Changes save automatically.</p>
+          <fieldset id="destinations" aria-label="Destination albums"></fieldset>
+          <form id="guest-form" class="guest-form">
+            <label for="guest-name">Add a guest</label>
+            <div class="row">
+              <input id="guest-name" maxlength="80" required placeholder="Guest name">
+              <button id="add-guest" type="submit">Add</button>
+            </div>
+          </form>
+          <form id="print-form" class="print-form">
+            <label for="printed">Copies already printed</label>
+            <div class="row">
+              <input id="printed" type="number" min="0" max="9007199254740991" step="1" required value="0">
+            </div>
+            <p id="print-status" class="hint"></p>
+          </form>
+          <p id="feedback" role="status"></p>
+        </section>
+      </div>
+    </div>
+    <dialog id="print-list" aria-labelledby="print-list-heading">
+      <div class="assignment-header">
+        <h2 id="print-list-heading">Print list</h2>
+        <form method="dialog"><button autofocus>Close</button></form>
+      </div>
+      <p class="hint">One print per assigned guest. The Shared album is digital.</p>
+      <p id="print-summary"></p>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Photo</th>
+              <th scope="col">Needed</th>
+              <th scope="col">Printed</th>
+              <th scope="col">Still to print</th>
+            </tr>
+          </thead>
+          <tbody id="print-rows"></tbody>
+        </table>
+      </div>
+    </dialog>
+  </main>
+</body>
+</html>

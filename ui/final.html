@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Final Albums · Wedding Photo Sorter</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/final.js" defer></script>
+</head>
+<body>
+  <main>
+    <header class="top">
+      <div>
+        <h1>Final albums</h1>
+        <p class="subtitle">Choose what each guest receives and arrange the photos for delivery.</p>
+      </div>
+      <a class="button-link" href="/">Back to assignments</a>
+    </header>
+
+    <p id="final-error" class="notice error" role="alert" hidden></p>
+    <p id="no-guests" class="notice" hidden>Add a guest on the assignment screen to start a final album.</p>
+    <div class="final-toolbar">
+      <div class="row">
+        <label for="final-guest">Guest</label>
+        <select id="final-guest" disabled></select>
+        <button id="final-reload" type="button" disabled>Reload</button>
+      </div>
+      <div class="row">
+        <span id="final-count"></span>
+        <button id="final-render" class="primary" type="button" disabled>Render album</button>
+      </div>
+    </div>
+    <p id="final-feedback" class="hint" role="status"></p>
+
+    <div id="final-workspace" class="final-layout" hidden>
+      <section class="card final-list-card" aria-label="Photos for this guest">
+        <div class="final-filters">
+          <input id="final-search" type="search" aria-label="Find a photo" placeholder="Find a photo or source album">
+          <select id="final-filter" aria-label="Filter photos">
+            <option value="all">All available</option>
+            <option value="included">Included</option>
+            <option value="ordered">Custom order</option>
+            <option value="excluded">Excluded</option>
+          </select>
+        </div>
+        <p id="final-empty" class="hint" hidden></p>
+        <ul id="final-list"></ul>
+      </section>
+
+      <section id="final-detail" class="card final-detail" aria-label="Selected photo" hidden>
+        <div class="final-preview">
+          <img id="final-image" alt="Selected photo">
+          <p id="final-preview-error" hidden>Source photo unavailable for preview.</p>
+        </div>
+        <div class="final-photo-info">
+          <strong id="final-filename"></strong>
+          <p id="final-source" class="hint"></p>
+          <div id="final-order" hidden>
+            <p class="hint">Photos with a custom position come first. The rest follow in capture order.</p>
+            <form id="final-rank-form" class="row">
+              <label for="final-rank">Position</label>
+              <input id="final-rank" type="number" min="1" step="1" required>
+              <button id="final-set-rank" type="submit">Set position</button>
+              <button id="final-clear-rank" type="button">Clear position</button>
+            </form>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
