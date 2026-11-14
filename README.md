@@ -11,14 +11,14 @@ Use [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-album
 For offline use, download `PhotoAlbumCurator-desktop.zip` from the [releases page](https://github.com/spapa013/photo-album-curator/releases) starting with v0.4.0.
 
 1. Install Python 3.10 or newer from [python.org](https://www.python.org/downloads/).
-2. Extract the desktop ZIP and run **Start Wedding Sorter.bat** on Windows or **Start Wedding Sorter.command** on macOS. You can also run `python3 launch.py` on macOS.
+2. Extract the desktop ZIP and run **StartPhotoAlbumCurator.bat** on Windows or **StartPhotoAlbumCurator.command** on macOS. You can also run `python3 launch.py` on macOS.
 3. Open [the local app](http://127.0.0.1:8765/) in Chrome or Edge and keep the launcher running.
 
 Both editions use the same browser app and workspace file. Choose the same workspace folder in either edition. The browser grants external album access separately for the hosted and local addresses.
 
 ## Set up a workspace
 
-Click **Set Workspace** and choose a folder where the app can write. The app opens or creates `photo_album_curator_data.json`. For a v0.3.0 folder project, rename `Photo Album Curator.json` to the new name before selecting the folder in Edge or v0.4.0.
+Click **Set Workspace** and choose a folder where the app can write. The app opens or creates `photo_album_curator_data.json`. For a v0.3.0 folder project, rename its existing project JSON to this filename before selecting the folder in Edge or v0.4.0.
 
 Use **Add Source Album** to choose a photo folder or one or more ZIP archives. Selecting an entire folder named `Albums` opens its subfolders and ZIPs as separate albums. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to store access handles in this browser. Use **Reconnect** when a source needs permission again.
 

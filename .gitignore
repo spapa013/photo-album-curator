@@ -1,7 +1,7 @@
 /Albums/
 /Sorted/
-/Wedding Sorter.sqlite3
-/Wedding Sorter.sqlite3-*
+/*.sqlite3
+/*.sqlite3-*
 __pycache__/
 /Final Albums/
 .DS_Store

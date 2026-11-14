@@ -214,7 +214,7 @@ function renderPhoto() {
 
 function showPhoto(position) {
   index = position;
-  if (currentPhoto()) preference(`wedding-sorter-photo:${album}`, currentPhoto().path);
+  if (currentPhoto()) preference(`curator-photo:${album}`, currentPhoto().path);
   renderPhoto();
 }
 
@@ -225,13 +225,13 @@ async function openAlbum(key) {
   pending.length = 0;
   saveFailed = false;
   feedback.textContent = "";
-  preference("wedding-sorter-album", key);
+  preference("curator-album", key);
   albumSelect.value = key;
   guestName.value = "";
   browser.preview(image, byId("preview-error"), album, null);
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));
-  const lastPhoto = preference(`wedding-sorter-photo:${key}`);
+  const lastPhoto = preference(`curator-photo:${key}`);
   let position = state.photos.findIndex((photo) => photo.path === lastPhoto);
   if (position < 0) position = state.photos.findIndex((photo) => photo.path === state.resume);
   showPhoto(Math.max(position, 0));
@@ -239,7 +239,7 @@ async function openAlbum(key) {
 
 async function reloadAlbums(preferredAlbum) {
   const choices = await request("/api/albums");
-  const preferred = preferredAlbum ?? album ?? preference("wedding-sorter-album");
+  const preferred = preferredAlbum ?? album ?? preference("curator-album");
   const choice = choices.find(({id}) => id === preferred) ?? choices[0];
   albumSelect.replaceChildren(...choices.map(({id, label}) =>
     new Option(!browser.available(id) ? label + " (reopen source)" : label, id)));

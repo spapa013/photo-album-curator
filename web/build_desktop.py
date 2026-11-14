@@ -16,16 +16,16 @@ def main():
         site = Path(directory) / "dist"
         subprocess.run([sys.executable, str(ROOT / "web" / "build.py"), "--output", str(site)], check=True)
         with ZipFile(PACKAGE, "w", compression=ZIP_DEFLATED) as archive:
-            for name in ("launch.py", "Start Wedding Sorter.bat", "Start Wedding Sorter.command", "README.md"):
+            for name in ("launch.py", "StartPhotoAlbumCurator.bat", "StartPhotoAlbumCurator.command", "README.md"):
                 source = ROOT / name
-                entry = ZipInfo.from_file(source, f"Photo Album Curator/{name}")
+                entry = ZipInfo.from_file(source, f"PhotoAlbumCurator/{name}")
                 if source.suffix == ".command":
                     entry.create_system = 3
                     entry.external_attr |= 0o111 << 16
                 archive.writestr(entry, source.read_bytes(), compress_type=ZIP_DEFLATED)
             for path in sorted(site.rglob("*")):
                 if path.is_file():
-                    archive.write(path, f"Photo Album Curator/dist/{path.relative_to(site).as_posix()}")
+                    archive.write(path, f"PhotoAlbumCurator/dist/{path.relative_to(site).as_posix()}")
     print(PACKAGE)
 
 

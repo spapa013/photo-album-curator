@@ -20,9 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 def running_curator(app):
     args = ["--port", "0", "--no-browser"]
     if os.name == "nt":
-        command = 'call "Start Wedding Sorter.bat" ' + subprocess.list2cmdline(args)
+        command = 'call "StartPhotoAlbumCurator.bat" ' + subprocess.list2cmdline(args)
     else:
-        command = ["./Start Wedding Sorter.command", *args]
+        command = ["./StartPhotoAlbumCurator.command", *args]
     with subprocess.Popen(
         command, shell=os.name == "nt", cwd=app,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
@@ -63,11 +63,12 @@ class PlatformSmokeTest(unittest.TestCase):
             with ZipFile(ROOT / "PhotoAlbumCurator-desktop.zip") as archive:
                 members = archive.infolist()
                 self.assertFalse(any("sqlite" in member.filename or "Albums/" in member.filename for member in members))
+                self.assertFalse(any(" " in member.filename for member in members))
                 archive.extractall(temp)
                 if os.name != "nt":
                     for member in members:
                         (Path(temp) / member.filename).chmod((member.external_attr >> 16) & 0o777)
-            app = Path(temp) / "Photo Album Curator"
+            app = Path(temp) / "PhotoAlbumCurator"
             (app / "private.json").write_text("private", encoding="utf-8")
 
             with running_curator(app) as base:

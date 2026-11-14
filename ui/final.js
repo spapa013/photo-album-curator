@@ -140,7 +140,7 @@ function render() {
 async function openGuest(guest) {
   plan = await request("open", {guest});
   guestSelect.value = guest;
-  await browser.preference("wedding-sorter-final-guest", guest);
+  await browser.preference("curator-final-guest", guest);
   feedback.textContent = "";
   render();
 }
@@ -182,7 +182,7 @@ perform(async () => {
   const guests = await request("guests");
   byId("no-guests").hidden = guests.length > 0;
   guestSelect.replaceChildren(...guests.map(({id, name}) => new Option(name, id)));
-  const preferred = Number(browser.preference("wedding-sorter-final-guest"));
+  const preferred = Number(browser.preference("curator-final-guest"));
   const guest = guests.find(({id}) => id === preferred) ?? guests[0];
   if (guest) await openGuest(guest.id);
   else feedback.textContent = "";
