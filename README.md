@@ -1,6 +1,8 @@
-# Wedding Photo Sorter
+# Photo Album Curator
 
-A local app for sorting wedding photos on Windows and macOS. The interface opens in your browser. Photos, assignments, and rendered albums are stored on your computer.
+Create personalized albums from a shared photo collection.
+
+The app runs on Windows and macOS and opens in your browser. Photos, assignments, and rendered albums are stored on your computer.
 
 ## Download and start
 
