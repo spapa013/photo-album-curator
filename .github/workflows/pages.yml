@@ -3,6 +3,8 @@ name: Deploy browser app to GitHub Pages
 on:
   push:
     branches: [main]
+  release:
+    types: [published, released]
   workflow_dispatch:
 
 permissions:
@@ -25,9 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with:
+          ref: main
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/configure-pages@v5
-      - run: python3 web/build.py
+      - name: Build release and edge pages
+        run: python3 web/build_pages.py
+        env:
+          GH_TOKEN: ${{ github.token }}
       - uses: actions/upload-pages-artifact@v3
         with:
           path: dist

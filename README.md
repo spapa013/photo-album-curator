@@ -54,4 +54,6 @@ To move over from v0.1.0, select **Import progress** and choose `Wedding Sorter.
 
 In **Final albums**, choose a guest and select **Download ZIP**. The archive contains the included originals with numbered filenames. Browsers that offer a save dialog can stream the archive directly to disk. Other browsers assemble the ZIP before downloading, which may limit very large exports.
 
-To build the static site locally, run `python3 web/build.py` and serve the generated `dist/` directory over HTTP. The GitHub Pages workflow publishes only that directory.
+The main URL serves the latest GitHub release. Use [v0.3.0](https://spapa013.github.io/photo-album-curator/versions/v0.3.0/) for that fixed release, or [Edge](https://spapa013.github.io/photo-album-curator/edge/) for the current build from `main`. All three use project file format version 1.
+
+To build a single static app locally, run `python3 web/build.py` and serve `dist/` over HTTP. The GitHub Pages workflow assembles the latest release, versioned releases starting at v0.3.0, and Edge into one artifact.
