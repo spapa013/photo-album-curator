@@ -46,7 +46,7 @@ Select a photo to set or clear a custom position. Numbered photos come first, fo
 
 Open [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-album-curator/). Use **Open ZIP** to select one or more archives or **Open folder** to select a photo folder. Selecting the desktop app's entire `Albums` folder opens its subfolders and ZIPs as separate albums. The website serves the app code. Reading photos, editing assignments, and creating ZIPs happen on your device.
 
-In Chrome or Edge, click **Set Workspace** and choose a folder where the app can write. The app opens or creates `Photo Album Curator.json` there. Select that folder again when you return. The file holds guests, assignments, print counts, final-album choices, source locations, and viewing preferences. Use **Save current project to folder** to bring over an existing browser project. Older browser workspaces remain available in the browser-based controls.
+In Chrome or Edge, click **Set Workspace** and choose a folder where the app can write. The app opens or creates `Photo Album Curator.json` there. Select that folder again when you return. The file holds guests, assignments, print counts, final-album choices, source locations, and viewing preferences.
 
 Use **Open folder** or **Open ZIP** to add photos from any location. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to store access handles for outside sources in this browser, subject to browser permissions. Use **Reconnect** if an external source needs permission again. With the option off, reselect external sources when you return.
 

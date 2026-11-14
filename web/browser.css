@@ -1,7 +1,6 @@
 .browser-tools { display: flex; flex-wrap: wrap; margin: 1rem 0; gap: .5rem; align-items: center; }
 .browser-tools .hint { flex-basis: 100%; }
 .browser-workspace { flex-basis: 100%; flex-wrap: wrap; margin-bottom: .25rem; }
-#browser-workspace { max-width: min(68vw, 20rem); }
 #browser-source-list { flex-basis: 100%; margin: 0; padding-left: 1.4rem; }
 #browser-source-list button { margin-left: .5rem; }
 #browser-final { width: 98vw; max-width: none; height: 96vh; padding: 0; }

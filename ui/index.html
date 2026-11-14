@@ -27,28 +27,14 @@
     <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
       <div class="browser-workspace row">
         <button id="browser-set-workspace" type="button">Set Workspace</button>
-        <button id="browser-copy-workspace" type="button">Save current project to folder</button>
         <label id="browser-remember-label" hidden>
           <input id="browser-remember-external" type="checkbox"> Remember external albums
         </label>
       </div>
-      <div id="browser-legacy-workspaces" class="browser-workspace row">
-        <label for="browser-workspace">Workspace</label>
-        <select id="browser-workspace" disabled></select>
-        <button id="browser-new-workspace" type="button" aria-expanded="false" aria-controls="browser-workspace-form">New workspace</button>
-        <form id="browser-workspace-form" class="row" hidden>
-          <input id="browser-workspace-name" aria-label="Workspace name" placeholder="Workspace name" maxlength="80" required>
-          <button id="browser-create-workspace" type="submit">Choose folder and create</button>
-          <input id="browser-workspace-folder-input" type="file" webkitdirectory multiple hidden>
-        </form>
-      </div>
       <button id="browser-folder" type="button">Open folder</button>
-      <button id="browser-reconnect" type="button" hidden>Reconnect folder</button>
       <button id="browser-zip" type="button">Open ZIP</button>
       <button id="browser-import" type="button">Import progress</button>
       <button id="browser-backup" type="button">Download backup</button>
-      <input id="browser-folder-input" type="file" webkitdirectory multiple hidden>
-      <input id="browser-zip-input" type="file" accept=".zip" multiple hidden>
       <input id="browser-import-input" type="file" accept=".sqlite3,.db,.sqlite,.json" hidden>
       <p id="browser-project-status" class="hint" role="status">Photos stay on your device</p>
       <ul id="browser-source-list" hidden></ul>

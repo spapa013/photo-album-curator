@@ -14,16 +14,13 @@ const browser = window.browserCurator;
 function preference(key, value) {
   if (browser) {
     if (value === undefined) return browser.preference(key);
-    if (browser.diskStatus()) {
-      const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
-      const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
-      if (String(latest) !== String(value)) {
-        if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
-        queueSave("/api/preference", {key, value});
-      }
-      return;
+    const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
+    const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
+    if (String(latest) !== String(value)) {
+      if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
+      queueSave("/api/preference", {key, value});
     }
-    return browser.preference(key, value);
+    return;
   }
   if (value === undefined) return localStorage.getItem(key);
   localStorage.setItem(key, value);
@@ -57,18 +54,18 @@ function currentPhoto() {
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
   if (browser) {
-    for (const id of ["browser-workspace", "browser-create-workspace",
-      "browser-set-workspace", "browser-copy-workspace", "browser-remember-external",
-      "browser-folder", "browser-reconnect", "browser-zip",
+    const blocked = busy || saving || pending.length > 0;
+    byId("browser-set-workspace").disabled = blocked;
+    for (const id of ["browser-remember-external", "browser-folder", "browser-zip",
       "browser-import", "browser-backup"]) {
-      byId(id).disabled = busy || saving || pending.length > 0;
+      byId(id).disabled = blocked || !browser.diskStatus();
     }
     for (const button of byId("browser-source-list").querySelectorAll("button")) {
       button.disabled = busy || saving || pending.length > 0;
     }
   }
   albumSelect.disabled = busy || saving || albumSelect.options.length === 0;
-  byId("reload").disabled = busy || saving;
+  byId("reload").disabled = busy || saving || (browser && !browser.diskStatus());
   byId("previous").disabled = busy || index <= 0;
   byId("next").disabled = busy || !hasPhoto || index >= state.photos.length - 1;
   for (const id of ["jump", "destinations", "printed", "show-prints"]) {
@@ -220,6 +217,7 @@ function renderPhoto() {
   if (!photo) {
     image.removeAttribute("src");
     if (browser) browser.preview(image, byId("preview-error"), album, null);
+    updateControls();
     return;
   }
   jump.selectedIndex = index;
@@ -359,26 +357,17 @@ window.addEventListener("beforeunload", (event) => {
 
 if (browser) {
   byId("browser-tools").hidden = false;
-  byId("final-link").hidden = false;
   byId("local-file-help").remove();
   byId("empty").textContent = "Set Workspace to choose where to save your project, then open a photo folder or ZIP.";
   const status = byId("browser-project-status");
-  const reconnect = byId("browser-reconnect");
-  const workspaceSelect = byId("browser-workspace");
-  const workspaceForm = byId("browser-workspace-form");
-  const workspaceName = byId("browser-workspace-name");
-  const workspaceFolderInput = byId("browser-workspace-folder-input");
-  const newWorkspace = byId("browser-new-workspace");
   const remember = byId("browser-remember-external");
   const sourceList = byId("browser-source-list");
   const progress = (message) => { status.textContent = message; };
   function showDiskStatus() {
     const disk = browser.diskStatus();
-    byId("browser-legacy-workspaces").hidden = Boolean(disk);
-    byId("browser-copy-workspace").hidden = Boolean(disk);
+    byId("final-link").hidden = !disk;
     byId("browser-remember-label").hidden = !disk;
     if (!disk) return;
-    reconnect.hidden = true;
     remember.checked = disk.rememberExternal;
     progress(`Workspace: ${disk.name} · Saving to Photo Album Curator.json`);
     sourceList.hidden = !disk.sources.length;
@@ -399,29 +388,28 @@ if (browser) {
       return row;
     }));
   }
-  for (const [id, copy] of [["browser-set-workspace", false], ["browser-copy-workspace", true]]) {
-    byId(id).addEventListener("click", () => {
-      savePrinted();
-      if (saving || pending.length) return;
-      if (!window.showDirectoryPicker || !navigator.locks) {
-        errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
-        errorBox.hidden = false;
-        return;
+  byId("browser-set-workspace").addEventListener("click", () => {
+    savePrinted();
+    if (saving || pending.length) return;
+    if (!window.showDirectoryPicker || !navigator.locks) {
+      errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
+      errorBox.hidden = false;
+      return;
+    }
+    perform(async () => {
+      try {
+        await browser.setWorkspace(progress);
+      } catch (error) {
+        if (error.name === "AbortError") return;
+        throw error;
       }
-      perform(async () => {
-        try {
-          await browser.setWorkspace(copy, progress);
-        } catch (error) {
-          if (error.name === "AbortError") return;
-          throw error;
-        }
-        album = null;
-        state = null;
-        showDiskStatus();
-        await reloadAlbums();
-      });
+      album = null;
+      state = null;
+      showDiskStatus();
+      byId("empty").textContent = "Open a photo folder or ZIP to add albums to this workspace.";
+      await reloadAlbums();
     });
-  }
+  });
   remember.addEventListener("change", () => {
     const enabled = remember.checked;
     perform(async () => {
@@ -432,167 +420,37 @@ if (browser) {
       }
     });
   });
-  function showWorkspaces({entries, active}) {
-    workspaceSelect.replaceChildren(...entries.map(({id, name, folderName}) => {
-      const option = new Option(name, id);
-      if (folderName) option.dataset.folder = folderName;
-      return option;
-    }));
-    workspaceSelect.value = active;
-    workspaceSelect.dataset.activeIndex = workspaceSelect.selectedIndex;
-  }
-  async function openWorkspace(select) {
-    const result = await select();
-    showWorkspaces(result);
-    album = null;
-    state = null;
-    index = 0;
-    guestName.value = "";
-    feedback.textContent = "";
-    reconnect.hidden = true;
-    progress("Photos stay on your device");
-    renderPhoto();
-    if (result.folder) {
-      showFolder(result.folder);
-      await reloadAlbums(result.folder.opened[0]);
-    } else {
-      await restoreFolder(false);
-    }
-  }
-  workspaceSelect.addEventListener("change", () => {
-    const selected = workspaceSelect.value;
-    workspaceSelect.selectedIndex = Number(workspaceSelect.dataset.activeIndex);
-    savePrinted();
-    if (!saving && !pending.length) {
-      closeWorkspaceForm();
-      perform(() => openWorkspace(() => browser.selectWorkspace(selected)));
-    }
-  });
-  newWorkspace.addEventListener("click", () => {
-    workspaceForm.hidden = !workspaceForm.hidden;
-    newWorkspace.setAttribute("aria-expanded", String(!workspaceForm.hidden));
-    if (!workspaceForm.hidden) workspaceName.focus();
-  });
-  workspaceForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    savePrinted();
-    if (saving || pending.length) return;
-    if (!window.showDirectoryPicker) {
-      workspaceFolderInput.click();
-      return;
-    }
-    createWorkspace();
-  });
-  workspaceFolderInput.addEventListener("change", () => {
-    const files = Array.from(workspaceFolderInput.files);
-    workspaceFolderInput.value = "";
-    if (files.length) createWorkspace(files);
-  });
-  function createWorkspace(files) {
-    if (saving || pending.length) return;
-    perform(async () => {
-      try {
-        await openWorkspace(() => browser.createWorkspace(workspaceName.value, progress, files));
-      } catch (error) {
-        if (error.name === "AbortError") return;
-        if (error.name === "SecurityError" && !files) {
-          workspaceFolderInput.click();
-          return;
-        }
-        throw error;
-      }
-      closeWorkspaceForm();
-    });
-  }
-  function closeWorkspaceForm() {
-    workspaceForm.reset();
-    workspaceForm.hidden = true;
-    newWorkspace.setAttribute("aria-expanded", "false");
-  }
-  function showFolder(result) {
-    if (!result) return;
-    reconnect.hidden = Boolean(result.opened);
-    progress(result.temporary ? `Folder: ${result.name}. Select it again after refreshing.`
-      : result.opened ? `Remembered folder: ${result.name}`
-      : `Reconnect ${result.name} to reopen your photos.`);
-  }
-  async function restoreFolder(ask) {
-    try {
-      const folder = await browser.restoreFolder(progress, ask);
-      showFolder(folder);
-      if (!folder) {
-        const name = workspaceSelect.selectedOptions[0]?.dataset.folder;
-        if (name) progress(`Open ${name} to reconnect this workspace's photos.`);
-      }
-    } catch (error) {
-      if (error.name !== "AbortError") {
-        progress("Could not reopen the saved folder. Open the folder again.");
-      }
-    }
-    await reloadAlbums();
-  }
-  reconnect.addEventListener("click", () => {
-    savePrinted();
-    if (!saving && !pending.length) perform(() => restoreFolder(true));
-  });
-  for (const kind of ["folder", "zip", "import"]) {
-    const input = byId("browser-" + kind + "-input");
+  for (const kind of ["folder", "zip"]) {
     byId("browser-" + kind).addEventListener("click", () => {
-      if (browser.diskStatus() && kind !== "import") {
-        savePrinted();
-        if (saving || pending.length) return;
-        perform(async () => {
-          try {
-            const opened = await browser.chooseSource(kind, progress);
-            await reloadAlbums(opened.includes(album) ? album : opened[0]);
-          } catch (error) {
-            if (error.name !== "AbortError") throw error;
-          } finally {
-            showDiskStatus();
-          }
-        });
-        return;
-      }
-      if (kind !== "folder" || !window.showDirectoryPicker) {
-        input.click();
-        return;
-      }
       savePrinted();
       if (saving || pending.length) return;
       perform(async () => {
         try {
-          const result = await browser.chooseFolder(progress);
-          showFolder(result);
-          await reloadAlbums(result.opened.includes(album) ? album : result.opened[0]);
+          const opened = await browser.chooseSource(kind, progress);
+          await reloadAlbums(opened.includes(album) ? album : opened[0]);
         } catch (error) {
-          if (error.name === "SecurityError") input.click();
-          else if (error.name !== "AbortError") throw error;
-        }
-      });
-    });
-    input.addEventListener("change", () => {
-      const files = Array.from(input.files);
-      input.value = "";
-      if (!files.length) return;
-      savePrinted();
-      if (saving || pending.length) return;
-      perform(async () => {
-        if (kind === "import") {
-          if (!window.confirm("Replace the active workspace's saved project with the imported project?")) return;
-          const counts = await browser.importProject(files[0]);
-          await reloadAlbums();
-          status.textContent = `Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`;
-        } else {
-          try {
-            const opened = await browser.openFiles(files, kind === "folder", progress);
-            await reloadAlbums(opened.includes(album) ? album : opened[0]);
-          } finally {
-            status.textContent = "Files opened with this picker need to be selected again after refresh.";
-          }
+          if (error.name !== "AbortError") throw error;
+        } finally {
+          showDiskStatus();
         }
       });
     });
   }
+  const importInput = byId("browser-import-input");
+  byId("browser-import").addEventListener("click", () => importInput.click());
+  importInput.addEventListener("change", () => {
+    const file = importInput.files[0];
+    importInput.value = "";
+    if (!file) return;
+    savePrinted();
+    if (saving || pending.length) return;
+    perform(async () => {
+      if (!window.confirm("Replace the active workspace's saved project with the imported project?")) return;
+      const counts = await browser.importProject(file);
+      await reloadAlbums();
+      progress(`Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`);
+    });
+  });
   byId("browser-backup").addEventListener("click", () => {
     savePrinted();
     if (saving || pending.length) return;
@@ -607,7 +465,8 @@ if (browser) {
     byId("browser-final").querySelector("iframe").removeAttribute("src");
     perform(reloadAlbums);
   });
-  perform(() => openWorkspace(browser.restoreWorkspace));
+  byId("loading").hidden = true;
+  renderPhoto();
 }
 
 if (window.location.protocol === "file:") {
