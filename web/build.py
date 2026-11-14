@@ -1,6 +1,6 @@
 """Build the self-contained GitHub Pages site in dist/."""
 from base64 import b64decode
-from hashlib import sha512
+from hashlib import sha256, sha512
 from io import BytesIO
 from pathlib import Path
 import shutil
@@ -34,20 +34,30 @@ for name in ("app.js", "final.js", "style.css"):
     shutil.copyfile(ROOT / "ui" / name, DIST / name)
 for name in ("browser.js", "browser.css"):
     shutil.copyfile(ROOT / "web" / name, DIST / name)
-for name, script in (("index.html", "app.js"), ("final.html", "final.js")):
+
+def asset_url(name):
+    fingerprint = sha256((DIST / name).read_bytes()).hexdigest()[:16]
+    return f"{name}?v={fingerprint}"
+
+
+for name, script in (("final.html", "final.js"), ("index.html", "app.js")):
     page = (ROOT / "ui" / name).read_text(encoding="utf-8")
     page = page.replace(f'src="/{script}"', f'src="{script}"')
     if name == "index.html":
         security = """<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self'; img-src 'self' blob:; worker-src 'self' blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">"""
     else:
         security = """<meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' blob:; object-src 'none'; base-uri 'none'; form-action 'none'">"""
-    scripts = '<link rel="stylesheet" href="browser.css">\n'
-    scripts += '<script src="zip.min.js" defer></script>\n' if name == "index.html" else ""
-    scripts += '<script src="sql-wasm-browser.js" defer></script>\n' if name == "index.html" else ""
-    scripts += '<script src="browser.js" defer></script>\n'
-    page = page.replace(f'<script src="{script}" defer></script>', f'{security}\n{scripts}<script src="{script}" defer></script>')
+    scripts = ("zip.min.js", "sql-wasm-browser.js") if name == "index.html" else ()
+    includes = "\n".join(
+        f'<script src="{asset_url(asset)}" defer></script>'
+        for asset in (*scripts, "browser.js", script)
+    )
+    page = page.replace(f'<script src="{script}" defer></script>',
+                        f'{security}\n<link rel="stylesheet" href="{asset_url("browser.css")}">\n{includes}')
     page = page.replace("Wedding Photo Sorter", "Photo Album Curator")
     page = page.replace('href="/style.css"', 'href="style.css"').replace('href="/"', 'href="./"')
-    page = page.replace('href="/final"', 'href="final.html"')
+    page = page.replace('href="style.css"', f'href="{asset_url("style.css")}"')
+    if name == "index.html":
+        page = page.replace('href="/final"', f'href="{asset_url("final.html")}"')
     (DIST / name).write_text(page, encoding="utf-8")
 (DIST / ".nojekyll").touch()

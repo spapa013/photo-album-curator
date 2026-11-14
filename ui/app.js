@@ -45,8 +45,8 @@ function currentPhoto() {
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
   if (browser) {
-    for (const id of ["browser-workspace", "browser-new-workspace", "browser-workspace-name",
-      "browser-create-workspace", "browser-folder", "browser-reconnect", "browser-zip",
+    for (const id of ["browser-workspace", "browser-create-workspace",
+      "browser-folder", "browser-reconnect", "browser-zip",
       "browser-import", "browser-backup"]) {
       byId(id).disabled = busy || saving || pending.length > 0;
     }

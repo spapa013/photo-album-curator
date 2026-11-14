@@ -611,7 +611,7 @@
   function showFinal() {
     const dialog = document.getElementById("browser-final");
     const frame = dialog.querySelector("iframe");
-    frame.src = "final.html";
+    frame.src = document.getElementById("final-link").href;
     dialog.showModal();
   }
 
