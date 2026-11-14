@@ -214,8 +214,8 @@ function showPhoto(position) {
 async function openAlbum(key) {
   const result = await request("/api/open", {album: key});
   if (result.storage !== "central") {
-    throw new Error("An earlier sorter is still running. Close its command window, " +
-      "double-click Start Wedding Sorter.bat again, then refresh this tab.");
+    throw new Error("An earlier sorter is still running. Close its terminal window, " +
+      "run the launcher for your operating system, then refresh this tab.");
   }
   state = result;
   album = key;
