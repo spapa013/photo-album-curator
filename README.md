@@ -44,11 +44,11 @@ Select a photo to set or clear a custom position. Numbered photos come first, fo
 
 ## Use in your browser
 
-Open [Photo Album Curator on GitHub Pages](https://spapa013.github.io/photo-album-curator/). Use **Open ZIP** to select one or more archives or **Open folder** to select a photo folder. Selecting the desktop app's entire `Albums` folder opens its subfolders and ZIPs as separate albums. The website serves the app code. Reading photos, editing assignments, and creating ZIPs happen on your device.
+Open [Photo Album Curator Edge on GitHub Pages](https://spapa013.github.io/photo-album-curator/edge/). Use **Add Source Album** to choose a photo folder or one or more ZIP archives. Selecting the desktop app's entire `Albums` folder opens its subfolders and ZIPs as separate albums. Reading photos, editing assignments, and creating ZIPs happen on your device.
 
 In Chrome or Edge, click **Set Workspace** and choose a folder where the app can write. The app opens or creates `Photo Album Curator.json` there. Select that folder again when you return. The file holds guests, assignments, print counts, final-album choices, source locations, and viewing preferences.
 
-Use **Open folder** or **Open ZIP** to add photos from any location. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to store access handles for outside sources in this browser, subject to browser permissions. Use **Reconnect** if an external source needs permission again. With the option off, reselect external sources when you return.
+Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to store access handles for outside sources in this browser, subject to browser permissions. Use **Reconnect** if an external source needs permission again. With the option off, reselect external sources when you return.
 
 To move over from v0.1.0, select **Import progress** and choose `Wedding Sorter.sqlite3` from your desktop workspace. Import replaces the active project's assignments, guests, print counts, and final-album choices. Use **Download backup** to save a portable copy of project data.
 

@@ -56,7 +56,7 @@ function updateControls() {
   if (browser) {
     const blocked = busy || saving || pending.length > 0;
     byId("browser-set-workspace").disabled = blocked;
-    for (const id of ["browser-remember-external", "browser-folder", "browser-zip",
+    for (const id of ["browser-remember-external", "browser-add-source", "browser-folder", "browser-zip",
       "browser-import", "browser-backup"]) {
       byId(id).disabled = blocked || !browser.diskStatus();
     }
@@ -321,7 +321,7 @@ byId("print-form").addEventListener("submit", (event) => {
   savePrinted();
 });
 document.addEventListener("keydown", (event) => {
-  if (busy || !currentPhoto() || printList.open || event.defaultPrevented ||
+  if (busy || !currentPhoto() || printList.open || byId("browser-source-dialog").open || event.defaultPrevented ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
       event.target.isContentEditable || event.target.matches('input:not([type="checkbox"]), select, textarea')) {
     return;
@@ -357,6 +357,7 @@ window.addEventListener("beforeunload", (event) => {
 
 if (browser) {
   byId("browser-tools").hidden = false;
+  byId("browser-privacy").hidden = false;
   byId("local-file-help").remove();
   byId("empty").textContent = "Set Workspace to choose where to save your project, then open a photo folder or ZIP.";
   const status = byId("browser-project-status");
@@ -406,7 +407,7 @@ if (browser) {
       album = null;
       state = null;
       showDiskStatus();
-      byId("empty").textContent = "Open a photo folder or ZIP to add albums to this workspace.";
+      byId("empty").textContent = "Use Add Source Album to add a photo folder or ZIP to this workspace.";
       await reloadAlbums();
     });
   });
@@ -420,8 +421,15 @@ if (browser) {
       }
     });
   });
+  const sourceDialog = byId("browser-source-dialog");
+  byId("browser-add-source").addEventListener("click", () => {
+    savePrinted();
+    if (!saving && !pending.length) sourceDialog.showModal();
+  });
+  byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
   for (const kind of ["folder", "zip"]) {
     byId("browser-" + kind).addEventListener("click", () => {
+      sourceDialog.close();
       savePrinted();
       if (saving || pending.length) return;
       perform(async () => {

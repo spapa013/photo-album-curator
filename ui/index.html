@@ -12,7 +12,10 @@
     <header class="top">
       <div>
         <h1>Wedding Photo Sorter</h1>
-        <p class="subtitle">Browse an album and choose who gets each photo.</p>
+        <p class="subtitle">
+          Browse source albums and select photos for destination albums
+          <span id="browser-privacy" class="privacy-note" hidden>Photos stay on your device</span>
+        </p>
       </div>
       <div class="album-controls">
         <label for="album">Album</label>
@@ -31,14 +34,21 @@
           <input id="browser-remember-external" type="checkbox"> Remember external albums
         </label>
       </div>
-      <button id="browser-folder" type="button">Open folder</button>
-      <button id="browser-zip" type="button">Open ZIP</button>
+      <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source Album</button>
       <button id="browser-import" type="button">Import progress</button>
       <button id="browser-backup" type="button">Download backup</button>
       <input id="browser-import-input" type="file" accept=".sqlite3,.db,.sqlite,.json" hidden>
-      <p id="browser-project-status" class="hint" role="status">Photos stay on your device</p>
+      <p id="browser-project-status" class="hint" role="status"></p>
       <ul id="browser-source-list" hidden></ul>
     </section>
+    <dialog id="browser-source-dialog" aria-labelledby="browser-source-heading">
+      <h2 id="browser-source-heading">Add Source Album</h2>
+      <div class="source-type-options row">
+        <button id="browser-folder" type="button">Choose folder</button>
+        <button id="browser-zip" type="button">Choose ZIP</button>
+        <button id="browser-cancel-source" type="button">Cancel</button>
+      </div>
+    </dialog>
     <dialog id="browser-final" aria-label="Final albums"><iframe title="Final albums"></iframe></dialog>
 
     <p id="error" class="notice error" role="alert" hidden></p>
