@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Wedding Photo Sorter</title>
+  <title>Photo Album Curator</title>
   <link rel="stylesheet" href="style.css">
   <script src="app.js" defer></script>
 </head>
@@ -11,10 +11,10 @@
   <main>
     <header class="top">
       <div>
-        <h1>Wedding Photo Sorter</h1>
+        <h1>Photo Album Curator</h1>
         <p class="subtitle">
-          Browse source albums and select photos for destination albums
-          <span id="browser-privacy" class="privacy-note" hidden>Photos stay on your device</span>
+          Browse source albums and select photos for destination albums.
+          <span id="browser-privacy" class="privacy-note" hidden>Photos stay on your device.</span>
         </p>
       </div>
       <div class="album-controls">
@@ -22,7 +22,7 @@
         <div class="row">
           <select id="album" disabled></select>
           <button id="reload" type="button">Reload albums</button>
-          <a id="final-link" class="button-link" href="/final" hidden>Final albums</a>
+          <a id="final-link" class="button-link" href="final.html" hidden>Final albums</a>
         </div>
       </div>
     </header>
@@ -37,7 +37,7 @@
       <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source Album</button>
       <button id="browser-import" type="button">Import progress</button>
       <button id="browser-backup" type="button">Download backup</button>
-      <input id="browser-import-input" type="file" accept=".sqlite3,.db,.sqlite,.json" hidden>
+      <input id="browser-import-input" type="file" accept=".json" hidden>
       <p id="browser-project-status" class="hint" role="status"></p>
       <ul id="browser-source-list" hidden></ul>
     </section>
@@ -53,11 +53,6 @@
 
     <p id="error" class="notice error" role="alert" hidden></p>
     <button id="retry-save" type="button" hidden>Retry saving</button>
-    <p id="local-file-help" class="notice" hidden>
-      Run <strong>Start Wedding Sorter.bat</strong> on Windows or
-      <strong>Start Wedding Sorter.command</strong> on macOS, then
-      <a href="http://127.0.0.1:8765/">open the running sorter</a>.
-    </p>
     <p id="loading" role="status">Loading albums…</p>
     <p id="empty" class="notice" hidden>
       No supported photos here yet. Add photos, an album folder, or a ZIP file to
@@ -98,9 +93,9 @@
           <p class="hint">Choose any destinations. Changes save automatically.</p>
           <fieldset id="destinations" aria-label="Destination albums"></fieldset>
           <form id="guest-form" class="guest-form">
-            <label for="guest-name">Add a guest</label>
+            <label for="guest-name">Add a destination</label>
             <div class="row">
-              <input id="guest-name" maxlength="80" required placeholder="Guest name">
+              <input id="guest-name" maxlength="80" required placeholder="Destination name">
               <button id="add-guest" type="submit">Add</button>
             </div>
           </form>
@@ -120,7 +115,7 @@
         <h2 id="print-list-heading">Print list</h2>
         <form method="dialog"><button autofocus>Close</button></form>
       </div>
-      <p class="hint">One print per assigned guest. The Shared album is digital.</p>
+      <p class="hint">One print per assigned guest. Making a photo available to all destination albums adds zero prints.</p>
       <p id="print-summary"></p>
       <div class="table-scroll">
         <table>

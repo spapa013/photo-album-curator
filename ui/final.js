@@ -13,17 +13,7 @@ let plan = null;
 let selected = null;
 let busy = false;
 
-async function request(path, data) {
-  if (browser) return browser.request("/api/final/" + path, data);
-  const response = await fetch("/api/final/" + path, data === undefined ? {} : {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(data),
-  });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error);
-  return result;
-}
+const request = (path, data) => browser.request("/api/final/" + path, data);
 
 function key(photo) {
   return JSON.stringify([photo.album, photo.path]);
@@ -62,8 +52,8 @@ async function perform(action, message) {
 }
 
 function sourceLabel(photo) {
-  const origin = photo.assigned && photo.shared ? "Assigned and shared"
-    : photo.assigned ? "Assigned to this guest" : "Shared";
+  const origin = photo.assigned && photo.shared ? "Assigned to this guest and available to all"
+    : photo.assigned ? "Assigned to this guest" : "Available to all";
   return `${photo.album || "Loose photos"} · ${origin}`;
 }
 
@@ -72,23 +62,12 @@ function renderDetail() {
   byId("final-detail").hidden = !photo;
   if (!photo) {
     image.removeAttribute("src");
-    if (browser) browser.preview(image, byId("final-preview-error"), null, null);
+    browser.preview(image, byId("final-preview-error"), null, null);
     return;
   }
   byId("final-filename").textContent = photo.path;
   byId("final-source").textContent = sourceLabel(photo);
-  const src = "/photo?" + new URLSearchParams({album: photo.album, path: photo.path});
-  if (browser) {
-    browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
-  } else if (photo.available && image.getAttribute("src") !== src) {
-    image.hidden = false;
-    byId("final-preview-error").hidden = true;
-    image.src = src;
-  } else if (!photo.available) {
-    image.removeAttribute("src");
-    image.hidden = true;
-    byId("final-preview-error").hidden = false;
-  }
+  browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
   byId("final-order").hidden = !photo.included;
   const maxRank = plan.photos.filter(({rank}) => rank !== null).length + (photo.rank === null ? 1 : 0);
   byId("final-rank").max = maxRank;
@@ -128,7 +107,7 @@ function render() {
   if (!visible.some((photo) => key(photo) === selected)) selected = visible.length ? key(visible[0]) : null;
   byId("final-empty").hidden = visible.length > 0;
   byId("final-empty").textContent = plan.photos.length
-    ? "No photos match this filter." : "Photos assigned to this guest or Shared will appear here.";
+    ? "No photos match this filter." : "Photos assigned to this guest or made available to all will appear here.";
   list.replaceChildren(...visible.map((photo) => {
     const row = document.createElement("li");
     row.dataset.key = key(photo);
@@ -161,8 +140,7 @@ function render() {
 async function openGuest(guest) {
   plan = await request("open", {guest});
   guestSelect.value = guest;
-  if (browser) await browser.preference("wedding-sorter-final-guest", guest);
-  else localStorage.setItem("wedding-sorter-final-guest", guest);
+  await browser.preference("wedding-sorter-final-guest", guest);
   feedback.textContent = "";
   render();
 }
@@ -184,36 +162,27 @@ byId("final-rank-form").addEventListener("submit", (event) => {
 byId("final-clear-rank").addEventListener("click", () => edit(currentPhoto(), "unrank"));
 byId("final-render").addEventListener("click", () => {
   perform(async () => {
-    if (browser) {
-      const result = await browser.render(plan.guest, plan.token, plan.name, (message) => {
-        feedback.textContent = message;
-      });
-      feedback.textContent = result ? `Exported ${result.count} photos to ${result.name}` : "";
-      return;
-    }
-    const result = await request("render", {guest: plan.guest, token: plan.token});
-    feedback.textContent = `Rendered ${result.count} photos to ${result.path}`;
-  }, "Rendering album…");
+    const result = await browser.render(plan.guest, plan.token, plan.name, (message) => {
+      feedback.textContent = message;
+    });
+    feedback.textContent = result ? `Exported ${result.count} photos to ${result.name}` : "";
+  }, "Preparing ZIP…");
 });
 image.addEventListener("error", () => {
   image.hidden = true;
   byId("final-preview-error").hidden = false;
 });
 
-if (browser) {
-  byId("final-render").textContent = "Download ZIP";
-  document.querySelector("header a").addEventListener("click", (event) => {
-    event.preventDefault();
-    browser.closeFinal();
-  });
-}
+document.querySelector("header a").addEventListener("click", (event) => {
+  event.preventDefault();
+  browser.closeFinal();
+});
 
 perform(async () => {
   const guests = await request("guests");
   byId("no-guests").hidden = guests.length > 0;
   guestSelect.replaceChildren(...guests.map(({id, name}) => new Option(name, id)));
-  const preferred = Number(browser ? browser.preference("wedding-sorter-final-guest")
-    : localStorage.getItem("wedding-sorter-final-guest"));
+  const preferred = Number(browser.preference("wedding-sorter-final-guest"));
   const guest = guests.find(({id}) => id === preferred) ?? guests[0];
   if (guest) await openGuest(guest.id);
   else feedback.textContent = "";

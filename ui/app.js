@@ -12,18 +12,13 @@ const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
 function preference(key, value) {
-  if (browser) {
-    if (value === undefined) return browser.preference(key);
-    const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
-    const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
-    if (String(latest) !== String(value)) {
-      if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
-      queueSave("/api/preference", {key, value});
-    }
-    return;
+  if (value === undefined) return browser.preference(key);
+  const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
+  const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
+  if (String(latest) !== String(value)) {
+    if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
+    queueSave("/api/preference", {key, value});
   }
-  if (value === undefined) return localStorage.getItem(key);
-  localStorage.setItem(key, value);
 }
 let album = null;
 let state = null;
@@ -34,18 +29,7 @@ let saveFailed = false;
 let printTimer = null;
 const pending = [];
 
-async function request(path, body) {
-  if (browser) return browser.request(path, body);
-  const options = body === undefined ? {} : {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(body),
-  };
-  const response = await fetch(path, options);
-  const result = await response.json();
-  if (!response.ok) throw new Error(result.error);
-  return result;
-}
+const request = browser.request;
 
 function currentPhoto() {
   return state?.photos[index];
@@ -53,19 +37,17 @@ function currentPhoto() {
 
 function updateControls() {
   const hasPhoto = Boolean(currentPhoto());
-  if (browser) {
-    const blocked = busy || saving || pending.length > 0;
-    byId("browser-set-workspace").disabled = blocked;
-    for (const id of ["browser-remember-external", "browser-add-source", "browser-folder", "browser-zip",
-      "browser-import", "browser-backup"]) {
-      byId(id).disabled = blocked || !browser.diskStatus();
-    }
-    for (const button of byId("browser-source-list").querySelectorAll("button")) {
-      button.disabled = busy || saving || pending.length > 0;
-    }
+  const blocked = busy || saving || pending.length > 0;
+  byId("browser-set-workspace").disabled = blocked;
+  for (const id of ["browser-remember-external", "browser-add-source", "browser-folder", "browser-zip",
+    "browser-import", "browser-backup"]) {
+    byId(id).disabled = blocked || !browser.diskStatus();
+  }
+  for (const button of byId("browser-source-list").querySelectorAll("button")) {
+    button.disabled = busy || saving || pending.length > 0;
   }
   albumSelect.disabled = busy || saving || albumSelect.options.length === 0;
-  byId("reload").disabled = busy || saving || (browser && !browser.diskStatus());
+  byId("reload").disabled = busy || saving || !browser.diskStatus();
   byId("previous").disabled = busy || index <= 0;
   byId("next").disabled = busy || !hasPhoto || index >= state.photos.length - 1;
   for (const id of ["jump", "destinations", "printed", "show-prints"]) {
@@ -130,7 +112,7 @@ function queueSave(path, changes) {
 function renderDestinations() {
   const photo = currentPhoto().path;
   const selected = new Set(state.reviews[photo] ?? []);
-  const choices = [["", "Shared album"], ...state.guests.map((name) => [name, name])];
+  const choices = [["", "Make available to all destination albums"], ...state.guests.map((name) => [name, name])];
   destinations.replaceChildren(...choices.map(([name, label]) => {
     const row = document.createElement("label");
     const checkbox = document.createElement("input");
@@ -216,21 +198,14 @@ function renderPhoto() {
   byId("empty").hidden = Boolean(photo);
   if (!photo) {
     image.removeAttribute("src");
-    if (browser) browser.preview(image, byId("preview-error"), album, null);
+    browser.preview(image, byId("preview-error"), album, null);
     updateControls();
     return;
   }
   jump.selectedIndex = index;
   byId("filename").textContent = photo.path;
   byId("date").textContent = photo.date ? photo.date.replace("T", " ") : "No capture timestamp";
-  const src = "/photo?" + new URLSearchParams({album, path: photo.path});
-  if (browser) {
-    browser.preview(image, byId("preview-error"), album, photo.path);
-  } else if (image.getAttribute("src") !== src) {
-    image.hidden = false;
-    byId("preview-error").hidden = true;
-    image.src = src;
-  }
+  browser.preview(image, byId("preview-error"), album, photo.path);
   renderDestinations();
   printedInput.value = state.printed[photo.path] ?? 0;
   renderAssignmentSummary();
@@ -245,21 +220,15 @@ function showPhoto(position) {
 
 async function openAlbum(key) {
   const result = await request("/api/open", {album: key});
-  if (result.storage !== "central") {
-    throw new Error("An earlier sorter is still running. Close its terminal window, " +
-      "run the launcher for your operating system, then refresh this tab.");
-  }
   state = result;
   album = key;
-  byId("final-link").hidden = !result.final_albums;
   pending.length = 0;
   saveFailed = false;
   feedback.textContent = "";
   preference("wedding-sorter-album", key);
   albumSelect.value = key;
   guestName.value = "";
-  if (browser) browser.preview(image, byId("preview-error"), album, null);
-  else image.removeAttribute("src");
+  browser.preview(image, byId("preview-error"), album, null);
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));
   const lastPhoto = preference(`wedding-sorter-photo:${key}`);
@@ -273,7 +242,7 @@ async function reloadAlbums(preferredAlbum) {
   const preferred = preferredAlbum ?? album ?? preference("wedding-sorter-album");
   const choice = choices.find(({id}) => id === preferred) ?? choices[0];
   albumSelect.replaceChildren(...choices.map(({id, label}) =>
-    new Option(browser && !browser.available(id) ? label + " (reopen source)" : label, id)));
+    new Option(!browser.available(id) ? label + " (reopen source)" : label, id)));
   if (choice) await openAlbum(choice.id);
   else {
     album = null;
@@ -296,7 +265,7 @@ function navigate(position) {
 function switchAlbum(action) {
   savePrinted();
   if (saving) return;
-  if (pending.length && !window.confirm("Discard changes that could not be saved and reload from the database?")) return;
+  if (pending.length && !window.confirm("Discard changes that could not be saved and reload from the workspace file?")) return;
   perform(action);
 }
 
@@ -355,132 +324,126 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 
-if (browser) {
-  byId("browser-tools").hidden = false;
-  byId("browser-privacy").hidden = false;
-  byId("local-file-help").remove();
-  byId("empty").textContent = "Set Workspace to choose where to save your project, then open a photo folder or ZIP.";
-  const status = byId("browser-project-status");
-  const remember = byId("browser-remember-external");
-  const sourceList = byId("browser-source-list");
-  const progress = (message) => { status.textContent = message; };
-  function showDiskStatus() {
-    const disk = browser.diskStatus();
-    byId("final-link").hidden = !disk;
-    byId("browser-remember-label").hidden = !disk;
-    if (!disk) return;
-    remember.checked = disk.rememberExternal;
-    progress(`Workspace: ${disk.name} · Saving to Photo Album Curator.json`);
-    sourceList.hidden = !disk.sources.length;
-    sourceList.replaceChildren(...disk.sources.map((source) => {
-      const row = document.createElement("li");
-      row.textContent = source.name + (source.available ? "" : " · Reopen source");
-      if (!source.available && source.reconnect) {
-        const button = document.createElement("button");
-        button.type = "button";
-        button.textContent = "Reconnect";
-        button.addEventListener("click", () => perform(async () => {
-          await browser.reconnectSource(source.id, progress);
-          await reloadAlbums();
-          showDiskStatus();
-        }));
-        row.append(button);
-      }
-      return row;
-    }));
+byId("browser-tools").hidden = false;
+byId("browser-privacy").hidden = false;
+byId("empty").textContent = "Set Workspace to choose where to save your project, then open a photo folder or ZIP.";
+const status = byId("browser-project-status");
+const remember = byId("browser-remember-external");
+const sourceList = byId("browser-source-list");
+const progress = (message) => { status.textContent = message; };
+function showDiskStatus() {
+  const disk = browser.diskStatus();
+  byId("final-link").hidden = !disk;
+  byId("browser-remember-label").hidden = !disk;
+  if (!disk) return;
+  remember.checked = disk.rememberExternal;
+  progress(`Workspace: ${disk.name} · Saving to ${disk.filename}`);
+  sourceList.hidden = !disk.sources.length;
+  sourceList.replaceChildren(...disk.sources.map((source) => {
+    const row = document.createElement("li");
+    row.textContent = source.name + (source.available ? "" : " · Reopen source");
+    if (!source.available && source.reconnect) {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.textContent = "Reconnect";
+      button.addEventListener("click", () => perform(async () => {
+        await browser.reconnectSource(source.id, progress);
+        await reloadAlbums();
+        showDiskStatus();
+      }));
+      row.append(button);
+    }
+    return row;
+  }));
+}
+byId("browser-set-workspace").addEventListener("click", () => {
+  savePrinted();
+  if (saving || pending.length) return;
+  if (!window.showDirectoryPicker || !navigator.locks) {
+    errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
+    errorBox.hidden = false;
+    return;
   }
-  byId("browser-set-workspace").addEventListener("click", () => {
+  perform(async () => {
+    try {
+      await browser.setWorkspace(progress);
+    } catch (error) {
+      if (error.name === "AbortError") return;
+      throw error;
+    }
+    album = null;
+    state = null;
+    showDiskStatus();
+    byId("empty").textContent = "Use Add Source Album to add a photo folder or ZIP to this workspace.";
+    await reloadAlbums();
+  });
+});
+remember.addEventListener("change", () => {
+  const enabled = remember.checked;
+  perform(async () => {
+    try {
+      await browser.rememberExternal(enabled);
+    } finally {
+      showDiskStatus();
+    }
+  });
+});
+const sourceDialog = byId("browser-source-dialog");
+byId("browser-add-source").addEventListener("click", () => {
+  savePrinted();
+  if (!saving && !pending.length) sourceDialog.showModal();
+});
+byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
+for (const kind of ["folder", "zip"]) {
+  byId("browser-" + kind).addEventListener("click", () => {
+    sourceDialog.close();
     savePrinted();
     if (saving || pending.length) return;
-    if (!window.showDirectoryPicker || !navigator.locks) {
-      errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
-      errorBox.hidden = false;
-      return;
-    }
     perform(async () => {
       try {
-        await browser.setWorkspace(progress);
+        const opened = await browser.chooseSource(kind, progress);
+        await reloadAlbums(opened.includes(album) ? album : opened[0]);
       } catch (error) {
-        if (error.name === "AbortError") return;
-        throw error;
-      }
-      album = null;
-      state = null;
-      showDiskStatus();
-      byId("empty").textContent = "Use Add Source Album to add a photo folder or ZIP to this workspace.";
-      await reloadAlbums();
-    });
-  });
-  remember.addEventListener("change", () => {
-    const enabled = remember.checked;
-    perform(async () => {
-      try {
-        await browser.rememberExternal(enabled);
+        if (error.name !== "AbortError") throw error;
       } finally {
         showDiskStatus();
       }
     });
   });
-  const sourceDialog = byId("browser-source-dialog");
-  byId("browser-add-source").addEventListener("click", () => {
-    savePrinted();
-    if (!saving && !pending.length) sourceDialog.showModal();
-  });
-  byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
-  for (const kind of ["folder", "zip"]) {
-    byId("browser-" + kind).addEventListener("click", () => {
-      sourceDialog.close();
-      savePrinted();
-      if (saving || pending.length) return;
-      perform(async () => {
-        try {
-          const opened = await browser.chooseSource(kind, progress);
-          await reloadAlbums(opened.includes(album) ? album : opened[0]);
-        } catch (error) {
-          if (error.name !== "AbortError") throw error;
-        } finally {
-          showDiskStatus();
-        }
-      });
-    });
-  }
-  const importInput = byId("browser-import-input");
-  byId("browser-import").addEventListener("click", () => importInput.click());
-  importInput.addEventListener("change", () => {
-    const file = importInput.files[0];
-    importInput.value = "";
-    if (!file) return;
-    savePrinted();
-    if (saving || pending.length) return;
-    perform(async () => {
-      if (!window.confirm("Replace the active workspace's saved project with the imported project?")) return;
-      const counts = await browser.importProject(file);
-      await reloadAlbums();
-      progress(`Imported ${counts.assignments} assignments and ${counts.printed} print counts. Open the original sources to reattach photos.`);
-    });
-  });
-  byId("browser-backup").addEventListener("click", () => {
-    savePrinted();
-    if (saving || pending.length) return;
-    perform(() => browser.backup());
-  });
-  byId("final-link").addEventListener("click", (event) => {
-    event.preventDefault();
-    savePrinted();
-    if (!busy && !saving && !pending.length) browser.showFinal();
-  });
-  byId("browser-final").addEventListener("close", () => {
-    byId("browser-final").querySelector("iframe").removeAttribute("src");
-    perform(reloadAlbums);
-  });
-  byId("loading").hidden = true;
-  renderPhoto();
 }
-
-if (window.location.protocol === "file:") {
-  byId("loading").hidden = true;
-  byId("local-file-help").hidden = false;
-  byId("reload").disabled = true;
-} else if (!browser) {
+const importInput = byId("browser-import-input");
+byId("browser-import").addEventListener("click", () => importInput.click());
+importInput.addEventListener("change", () => {
+  const file = importInput.files[0];
+  importInput.value = "";
+  if (!file) return;
+  savePrinted();
+  if (saving || pending.length) return;
+  perform(async () => {
+    if (!window.confirm(`Replace photo_album_curator_data.json in the active workspace with ${file.name}?`)) return;
+    await browser.importProject(file, progress);
+    album = null;
+    await reloadAlbums();
+    showDiskStatus();
+    progress(`Restored workspace from ${file.name}.`);
+  });
+});
+byId("browser-backup").addEventListener("click", () => {
+  savePrinted();
+  if (saving || pending.length) return;
+  perform(async () => {
+    const path = await browser.backup();
+    progress(`Backup saved to ${path}`);
+  });
+});
+byId("final-link").addEventListener("click", (event) => {
+  event.preventDefault();
+  savePrinted();
+  if (!busy && !saving && !pending.length) browser.showFinal();
+});
+byId("browser-final").addEventListener("close", () => {
+  byId("browser-final").querySelector("iframe").removeAttribute("src");
   perform(reloadAlbums);
-}
+});
+byId("loading").hidden = true;
+renderPhoto();

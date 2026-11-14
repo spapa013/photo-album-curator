@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-import json
+from html.parser import HTMLParser
 import os
 from pathlib import Path
 from queue import Queue
@@ -7,7 +7,8 @@ import subprocess
 from tempfile import TemporaryDirectory
 from threading import Thread
 import unittest
-from urllib.parse import urlencode
+from urllib.error import HTTPError
+from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
@@ -16,21 +17,21 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 @contextmanager
-def running_sorter(workspace):
-    args = ["--workspace", str(workspace), "--port", "0", "--no-browser"]
+def running_curator(app):
+    args = ["--port", "0", "--no-browser"]
     if os.name == "nt":
         command = 'call "Start Wedding Sorter.bat" ' + subprocess.list2cmdline(args)
     else:
-        command = ["/bin/bash", "Start Wedding Sorter.command", *args]
+        command = ["./Start Wedding Sorter.command", *args]
     with subprocess.Popen(
-        command, shell=os.name == "nt", cwd=ROOT,
+        command, shell=os.name == "nt", cwd=app,
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
     ) as process:
         output = Queue()
         Thread(target=lambda: output.put(process.stdout.readline().strip()), daemon=True).start()
         try:
             line = output.get(timeout=20)
-            prefix = "Wedding Photo Sorter is ready at "
+            prefix = "Photo Album Curator is ready at "
             if not line.startswith(prefix):
                 raise RuntimeError(f"Unexpected launcher output: {line!r}")
             yield line.removeprefix(prefix)
@@ -43,47 +44,59 @@ def running_sorter(workspace):
             process.wait(timeout=10)
 
 
-class PlatformSmokeTest(unittest.TestCase):
-    def test_preview_assign_and_render(self):
-        with TemporaryDirectory(prefix="Wedding Sorter ") as temp:
-            workspace = Path(temp)
-            albums = workspace / "Albums"
-            albums.mkdir()
-            photo = "portrait.jpg"
-            jpeg = b"\xff\xd8\xff\xd9"
-            source = "Sample Album.zip"
-            with ZipFile(albums / source, "w") as archive:
-                archive.writestr(f"Sample Album/{photo}", jpeg)
+class PageAssets(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.urls = []
 
-            with running_sorter(workspace) as base:
+    def handle_starttag(self, tag, attributes):
+        attributes = dict(attributes)
+        if tag == "script" and "src" in attributes:
+            self.urls.append(attributes["src"])
+        if tag == "link" and attributes.get("rel") == "stylesheet":
+            self.urls.append(attributes["href"])
+
+
+class PlatformSmokeTest(unittest.TestCase):
+    def test_desktop_bundle_serves_the_browser_build(self):
+        with TemporaryDirectory(prefix="Photo Album Curator ") as temp:
+            with ZipFile(ROOT / "PhotoAlbumCurator-desktop.zip") as archive:
+                members = archive.infolist()
+                self.assertFalse(any("sqlite" in member.filename or "Albums/" in member.filename for member in members))
+                archive.extractall(temp)
+                if os.name != "nt":
+                    for member in members:
+                        (Path(temp) / member.filename).chmod((member.external_attr >> 16) & 0o777)
+            app = Path(temp) / "Photo Album Curator"
+            (app / "private.json").write_text("private", encoding="utf-8")
+
+            with running_curator(app) as base:
                 def get(path):
                     with urlopen(base + path, timeout=10) as response:
                         return response.read()
 
-                def post(path, **data):
-                    request = Request(base + path, data=json.dumps(data).encode(), headers={
-                        "Origin": base,
-                        "Content-Type": "application/json",
-                    })
-                    with urlopen(request, timeout=10) as response:
-                        return json.load(response)
+                for filename, route, label in [
+                    ("index.html", "", b"Set Workspace"),
+                    ("final.html", "final.html", b"Download ZIP"),
+                ]:
+                    page = get(route)
+                    self.assertIn(label, page)
+                    self.assertEqual(page, (app / "dist" / filename).read_bytes())
+                    assets = PageAssets()
+                    assets.feed(page.decode())
+                    self.assertIn("browser.js", [urlsplit(url).path for url in assets.urls])
+                    for url in assets.urls:
+                        parts = urlsplit(url)
+                        self.assertFalse(parts.scheme or parts.netloc)
+                        self.assertEqual(get(url), (app / "dist" / parts.path).read_bytes())
 
-                self.assertIn(b"Wedding Photo Sorter", get("/"))
-                state = post("/api/open", album=source)
-                self.assertEqual([item["path"] for item in state["photos"]], [photo])
-                self.assertEqual(get("/photo?" + urlencode({"album": source, "path": photo})), jpeg)
-                post("/api/guest", album=source, name="Guest")
-                post("/api/review", album=source, photo=photo, destinations=["Guest", ""],
-                     printed=2, revision=state["revision"])
-                state = post("/api/open", album=source)
-                self.assertEqual(state["printed"][photo], 2)
-                self.assertEqual(state["reviews"][photo], ["", "Guest"])
-                guest, = json.loads(get("/api/final/guests"))
-                plan = post("/api/final/open", guest=guest["id"])
-                result = post("/api/final/render", guest=guest["id"], token=plan["token"])
-                self.assertEqual(result["count"], 1)
-                output = Path(result["path"]) / "0001 - portrait.jpg"
-                self.assertEqual(output.read_bytes(), jpeg)
+                for route in ("private.json", "../private.json", "api/albums"):
+                    with self.assertRaises(HTTPError) as error:
+                        get(route)
+                    self.assertEqual(error.exception.code, 404)
+                with self.assertRaises(HTTPError) as error:
+                    urlopen(Request(base, headers={"Host": "example.test"}), timeout=10)
+                self.assertEqual(error.exception.code, 403)
 
 
 if __name__ == "__main__":

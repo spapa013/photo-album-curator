@@ -6,7 +6,7 @@ where py.exe >nul 2>nul
 if not errorlevel 1 (
     py -3 -c "import sys; sys.exit(sys.version_info < (3, 10))" >nul 2>nul
     if not errorlevel 1 (
-        py -3 wedding_sorter.py %*
+        py -3 launch.py %*
         goto :done
     )
 )
@@ -15,7 +15,7 @@ for /d %%D in ("%LOCALAPPDATA%\Programs\Python\Python3*") do (
     if exist "%%~fD\python.exe" (
         "%%~fD\python.exe" -c "import sys; sys.exit(sys.version_info < (3, 10))" >nul 2>nul
         if not errorlevel 1 (
-            "%%~fD\python.exe" wedding_sorter.py %*
+            "%%~fD\python.exe" launch.py %*
             goto :done
         )
     )
@@ -25,12 +25,12 @@ where python.exe >nul 2>nul
 if not errorlevel 1 (
     python -c "import sys; sys.exit(sys.version_info < (3, 10))" >nul 2>nul
     if not errorlevel 1 (
-        python wedding_sorter.py %*
+        python launch.py %*
         goto :done
     )
 )
 
-echo Wedding Photo Sorter needs Python 3.10 or newer.
+echo Photo Album Curator needs Python 3.10 or newer.
 pause
 exit /b 1
 

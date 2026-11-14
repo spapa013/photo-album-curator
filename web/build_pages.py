@@ -37,33 +37,42 @@ def build(ref, destination):
 
 
 def add_version_navigation(output, latest, tags, edge_commit):
-    routes = [
-        (output, f"Latest release ({latest})", f"{latest} · Latest release"),
-        *((output / "versions" / tag, tag, f"{tag} · Pinned release") for tag in tags),
-        (output / "edge", "Edge", f"Edge · {edge_commit}"),
-    ]
-    for directory, _, current_version in routes:
-        links = []
-        for target, label, _ in routes:
-            if target == directory:
-                links.append(f'<li><span aria-current="page">{escape(label)}</span></li>')
-            else:
-                href = Path(relpath(target, directory)).as_posix() + "/"
-                links.append(f'<li><a href="{escape(href)}" target="_top">{escape(label)}</a></li>')
+    edge = output / "edge"
+    releases = {output / "versions" / tag: tag for tag in tags}
+    stylesheet = ROOT / "web" / "versions.css"
+    shutil.copyfile(stylesheet, output / stylesheet.name)
+    css_version = sha256(stylesheet.read_bytes()).hexdigest()[:16]
+
+    for directory in (output, edge, *releases):
+        def link(target, label):
+            href = Path(relpath(target, directory)).as_posix() + "/"
+            current = ' aria-current="page"' if target == directory else ""
+            return f'<a href="{escape(href)}" target="_top"{current}>{escape(label)}</a>'
+
+        label = "Select previous version" + (f" ({releases[directory]})" if directory in releases else "")
+        release_links = "".join(f"<li>{link(target, tag)}</li>" for target, tag in releases.items())
+        description = f'<small>Build {escape(edge_commit)}</small>' if directory == edge else ""
         navigation = (
-            '\n    <nav aria-label="App versions" class="browser-tools">\n'
-            f'      <details><summary>Version {escape(current_version)}</summary>\n'
-            f'        <ul>{"".join(links)}</ul>\n'
-            '      </details>\n    </nav>'
+            '    <nav aria-label="App versions" class="version-nav">\n'
+            f'      {link(output, f"Latest Release ({latest})")}\n'
+            '      <span aria-hidden="true">–</span>\n'
+            f'      {link(edge, "Edge")}\n'
+            '      <span aria-hidden="true">–</span>\n'
+            f'      <details><summary>{escape(label)}</summary><ul>{release_links}</ul></details>\n'
+            f'      {description}\n'
+            '    </nav>\n'
         )
+        css = Path(relpath(output / stylesheet.name, directory)).as_posix()
+        css_link = f'<link rel="stylesheet" href="{escape(css)}?v={css_version}">\n'
         final = directory / "final.html"
-        final.write_text(final.read_text(encoding="utf-8").replace(
-            "</header>", "</header>" + navigation, 1), encoding="utf-8")
-        fingerprint = sha256(final.read_bytes()).hexdigest()[:16]
         index = directory / "index.html"
+        for path in (final, index):
+            page = path.read_text(encoding="utf-8").replace("</head>", css_link + "</head>", 1)
+            path.write_text(page.replace("    <header", navigation + "    <header", 1), encoding="utf-8")
+        fingerprint = sha256(final.read_bytes()).hexdigest()[:16]
         page = re.sub(r'href="final\.html\?v=[0-9a-f]+"', f'href="final.html?v={fingerprint}"',
                       index.read_text(encoding="utf-8"))
-        index.write_text(page.replace("</header>", "</header>" + navigation, 1), encoding="utf-8")
+        index.write_text(page, encoding="utf-8")
 
 
 def main():

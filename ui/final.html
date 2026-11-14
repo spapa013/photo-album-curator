@@ -3,9 +3,9 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Final Albums · Wedding Photo Sorter</title>
-  <link rel="stylesheet" href="/style.css">
-  <script src="/final.js" defer></script>
+  <title>Final Albums · Photo Album Curator</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="final.js" defer></script>
 </head>
 <body>
   <main>
@@ -14,11 +14,11 @@
         <h1>Final albums</h1>
         <p class="subtitle">Choose what each guest receives and arrange the photos for delivery.</p>
       </div>
-      <a class="button-link" href="/">Back to assignments</a>
+      <a class="button-link" href="./">Back to assignments</a>
     </header>
 
     <p id="final-error" class="notice error" role="alert" hidden></p>
-    <p id="no-guests" class="notice" hidden>Add a guest on the assignment screen to start a final album.</p>
+    <p id="no-guests" class="notice" hidden>Add a destination on the assignment screen to start a final album.</p>
     <div class="final-toolbar">
       <div class="row">
         <label for="final-guest">Guest</label>
@@ -27,7 +27,7 @@
       </div>
       <div class="row">
         <span id="final-count"></span>
-        <button id="final-render" class="primary" type="button" disabled>Render album</button>
+        <button id="final-render" class="primary" type="button" disabled>Download ZIP</button>
       </div>
     </div>
     <p id="final-feedback" class="hint" role="status"></p>

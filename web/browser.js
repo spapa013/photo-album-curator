@@ -13,7 +13,7 @@
   let sources = new Map();
   let disk = null;
   let externalHandles = new Map();
-  const projectFilename = "Photo Album Curator.json";
+  const projectFilename = "photo_album_curator_data.json";
   const diskLock = "photo-album-curator-workspace-file";
   const photoType = /\.(jpe?g|jfif|png|webp|gif|bmp|avif)$/i;
   const basename = (path) => path.split("/").at(-1);
@@ -88,7 +88,7 @@
 
   async function readWorkspaceFile(handle) {
     const state = JSON.parse(await (await handle.getFile()).text());
-    if (!validBackup(state)) throw new Error(projectFilename + " is not a valid Curator project.");
+    if (!validBackup(state)) throw new Error(handle.name + " is not a valid Curator project.");
     return state;
   }
 
@@ -111,8 +111,6 @@
         file = await folder.getFileHandle(projectFilename);
       } catch (error) {
         if (error.name !== "NotFoundError") throw error;
-      }
-      if (!file) {
         file = await folder.getFileHandle(projectFilename, {create: true});
       }
       const state = (await file.getFile()).size ? await readWorkspaceFile(file) : projectDefault();
@@ -132,7 +130,7 @@
   function diskStatus() {
     if (!disk) return null;
     const {rememberExternal, sources: records} = disk.state.workspace;
-    return {name: disk.folder.name, rememberExternal, sources: records.map((record) => ({
+    return {name: disk.folder.name, filename: disk.file.name, rememberExternal, sources: records.map((record) => ({
       id: record.id, name: record.name,
       available: record.albums.length > 0 && record.albums.every((key) => sources.has(key)),
       reconnect: record.relative === null && rememberExternal && externalHandles.has(record.id),
@@ -448,7 +446,7 @@
     const photos = album.photos.slice().sort(comparePhotos);
     return {photos, resume: album.resume, revision: album.revision,
       guests: guestList(state).map(({name}) => name), reviews: Object.fromEntries(album.reviews),
-      printed: Object.fromEntries(album.printed), storage: "central", final_albums: true};
+      printed: Object.fromEntries(album.printed)};
   }
 
   function finalPlan(state, guest) {
@@ -650,50 +648,11 @@
     }
   }
 
-  let sqlite;
-  async function importSqlite(file) {
-    sqlite ??= initSqlJs({locateFile: (name) => new URL(name, document.baseURI).href});
-    const SQL = await sqlite;
-    const db = new SQL.Database(new Uint8Array(await file.arrayBuffer()));
-    const query = (sql) => db.exec(sql)[0]?.values ?? [];
-    try {
-      const version = query("PRAGMA user_version")[0]?.[0];
-      if (![1, 2].includes(version)) throw new Error("Choose the v0.1.0 Wedding Sorter.sqlite3 file.");
-      const state = projectDefault();
-      const names = new Map(query("SELECT id, name FROM destinations"));
-      state.guests = Array.from(names).filter(([id]) => id !== 0).map(([id, name]) => ({id, name}));
-      const reviews = new Map();
-      for (const [key, resume] of query("SELECT key, resume FROM source_albums")) addAlbum(state, key).resume = resume;
-      for (const [album, path] of query("SELECT album, photo FROM reviews")) {
-        const destinations = [];
-        addAlbum(state, album).reviews.push([path, destinations]);
-        reviews.set(photoKey(album, path), destinations);
-      }
-      for (const [album, path, guest] of query("SELECT album, photo, destination FROM assignments")) {
-        reviews.get(photoKey(album, path)).push(names.get(guest));
-      }
-      for (const [album, path, count] of query("SELECT album, photo, printed FROM print_counts")) {
-        addAlbum(state, album).printed.push([path, count]);
-      }
-      if (version === 2) {
-        state.choices = query("SELECT destination, album, photo, included, position FROM final_choices")
-          .map(([guest, album, path, included, rank]) => ({guest, album, path, included: included === null ? null : Boolean(included), rank}));
-      }
-      for (const album of state.albums) {
-        const paths = new Set([...album.reviews, ...album.printed].map(([path]) => path));
-        album.photos = Array.from(paths, (path) => ({path, date: null}));
-      }
-      return state;
-    } finally {
-      db.close();
-    }
-  }
-
   function validBackup(state) {
     const pairs = (rows, valid) => Array.isArray(rows) && rows.every((row) =>
       Array.isArray(row) && row.length === 2 && typeof row[0] === "string" && valid(row[1]));
     return state?.format === "photo-album-curator" && state.version === 1 &&
-      (state.workspace === undefined || validWorkspace(state.workspace)) &&
+      validWorkspace(state.workspace) &&
       Array.isArray(state.guests) && state.guests.every((guest) => guest && Number.isSafeInteger(guest.id) &&
         guest.id > 0 && typeof guest.name === "string" && guest.name.length > 0) &&
       Array.isArray(state.albums) && state.albums.every((album) => album && typeof album.key === "string" &&
@@ -724,29 +683,51 @@
         Array.isArray(record.albums) && record.albums.every((key) => typeof key === "string"));
   }
 
-  async function importProject(file) {
-    const state = /\.json$/i.test(file.name) ? JSON.parse(await file.text()) : await importSqlite(file);
+  async function importProject(file, progress) {
+    const backupName = /^photo_album_curator_data_backup_.+\.json$/i;
+    if (file.name.toLowerCase() !== projectFilename && !backupName.test(file.name)) {
+      throw new Error("Choose photo_album_curator_data.json or a Curator backup JSON file.");
+    }
+    const state = JSON.parse(await file.text());
     if (!validBackup(state)) throw new Error("The file is not a valid Photo Album Curator project.");
+    const importedWorkspace = state.workspace;
     await project((previous) => {
-      if (previous.workspace) {
-        state.workspace = {...previous.workspace,
-          preferences: state.workspace?.preferences ?? previous.workspace.preferences};
-      }
+      state.workspace = {...importedWorkspace, id: previous.workspace.id};
       for (const album of state.albums) {
         const existing = previous.albums.find(({key}) => key === album.key);
-        if (sources.has(album.key) && existing) album.photos = existing.photos;
         album.revision = Math.max(album.revision, existing?.revision ?? 0) + 1;
-      }
-      for (const key of sources.keys()) {
-        if (!state.albums.some((album) => album.key === key)) {
-          addAlbum(state, key).photos = previous.albums.find((album) => album.key === key).photos;
-        }
       }
       return state;
     });
-    return {assignments: state.albums.reduce((total, album) =>
-      total + album.reviews.reduce((count, [, names]) => count + names.length, 0), 0),
-    printed: state.albums.reduce((total, album) => total + album.printed.length, 0)};
+    sources = new Map();
+    externalHandles = new Map();
+    await restoreSources(progress);
+  }
+
+  async function backup() {
+    const target = disk;
+    return navigator.locks.request(diskLock, async () => {
+      const state = await readWorkspaceFile(target.file);
+      const directory = await target.folder.getDirectoryHandle("backups", {create: true});
+      const timestamp = new Date().toISOString().replaceAll(":", "-").replace(".", "-");
+      const prefix = `photo_album_curator_data_backup_${timestamp}`;
+      for (let index = 0; ; index++) {
+        const name = prefix + (index ? `_${index}` : "") + ".json";
+        try {
+          await directory.getFileHandle(name);
+        } catch (error) {
+          if (error.name !== "NotFoundError") throw error;
+          const file = await directory.getFileHandle(name, {create: true});
+          try {
+            await writeWorkspaceFile(file, state);
+          } catch (writeError) {
+            await directory.removeEntry(name).catch(() => {});
+            throw writeError;
+          }
+          return `backups/${name}`;
+        }
+      }
+    });
   }
 
   function showFinal() {
@@ -765,8 +746,6 @@
     request, preview, render, showFinal, closeFinal, importProject,
     preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource,
     available: (key) => sources.has(key),
-    async backup() {
-      download(new Blob([JSON.stringify(await project())], {type: "application/json"}), projectFilename);
-    },
+    backup,
   };
 })();

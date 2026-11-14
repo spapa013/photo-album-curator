@@ -1,0 +1,22 @@
+name: Attach the offline desktop bundle
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - run: python3 web/build_desktop.py
+      - name: Upload desktop bundle
+        run: gh release upload "$RELEASE_TAG" PhotoAlbumCurator-desktop.zip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
