@@ -94,7 +94,7 @@ class PlatformSmokeTest(unittest.TestCase):
 
                 guide = get("user-guide")
                 self.assertIn(b">User guide</h1>", guide)
-                self.assertIn(b'href="../" class="button-link">Back to app</a>', guide)
+                self.assertIn(b'href="../" class="button-link">Go to app</a>', guide)
                 self.assertEqual(guide, (app / "dist" / "user-guide" / "index.html").read_bytes())
                 self.assertEqual(get("user-guide/user-guide.md"), (app / "docs" / "user-guide.md").read_bytes())
                 assets = PageAssets()

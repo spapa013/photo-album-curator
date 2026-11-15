@@ -56,7 +56,7 @@ def build_guide(markdown, output, version=""):
   <main class="guide">
     <header class="top">
       <p class="hint">{label}</p>
-      <a href="../" class="button-link">Back to app</a>
+      <a href="../" class="button-link">Go to app</a>
     </header>
     <article>
 {article}
