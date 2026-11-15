@@ -430,6 +430,7 @@
   function addAlbum(state, key) {
     let album = state.albums.find((item) => item.key === key);
     if (!album) {
+      // Keep the legacy printed field in the version 1 file for older builds.
       album = {key, resume: null, revision: 0, photos: [], reviews: [], printed: []};
       state.albums.push(album);
     }
@@ -445,8 +446,7 @@
     if (!album) throw new Error("Open a photo folder or ZIP first.");
     const photos = album.photos.slice().sort(comparePhotos);
     return {photos, resume: album.resume, revision: album.revision,
-      guests: guestList(state).map(({name}) => name), reviews: Object.fromEntries(album.reviews),
-      printed: Object.fromEntries(album.printed)};
+      guests: guestList(state).map(({name}) => name), reviews: Object.fromEntries(album.reviews)};
   }
 
   function finalPlan(state, guest) {
@@ -530,27 +530,19 @@
       });
       return {added: name};
     }
-    if (path !== "/api/review" && path !== "/api/print-count") throw new Error("Unknown album action.");
+    if (path !== "/api/review") throw new Error("Unknown album action.");
     const state = await project((state) => {
       const album = state.albums.find(({key}) => key === data.album);
       if (!album || album.revision !== data.revision) throw new Error("This album changed. Reload it to continue.");
       if (!album.photos.some(({path}) => path === data.photo)) throw new Error("Reopen the source album.");
-      if (path === "/api/review") {
-        const destinationNames = new Set(["", ...state.guests.map(({name}) => name)]);
-        if (!Array.isArray(data.destinations) || data.destinations.some((name) => !destinationNames.has(name))) {
-          throw new Error("Choose a valid destination.");
-        }
-        const reviews = new Map(album.reviews);
-        reviews.set(data.photo, [...new Set(data.destinations)]);
-        album.reviews = Array.from(reviews);
-        album.resume = data.photo;
-      } else {
-        if (!Number.isSafeInteger(data.printed) || data.printed < 0) throw new Error("Enter a nonnegative whole number.");
-        const printed = new Map(album.printed);
-        if (data.printed) printed.set(data.photo, data.printed);
-        else printed.delete(data.photo);
-        album.printed = Array.from(printed);
+      const destinationNames = new Set(["", ...state.guests.map(({name}) => name)]);
+      if (!Array.isArray(data.destinations) || data.destinations.some((name) => !destinationNames.has(name))) {
+        throw new Error("Choose a valid destination.");
       }
+      const reviews = new Map(album.reviews);
+      reviews.set(data.photo, [...new Set(data.destinations)]);
+      album.reviews = Array.from(reviews);
+      album.resume = data.photo;
       album.revision++;
     });
     return {revision: state.albums.find(({key}) => key === data.album).revision};

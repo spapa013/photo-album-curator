@@ -6,8 +6,6 @@ const jump = byId("jump");
 const destinations = byId("destinations");
 const image = byId("image");
 const guestName = byId("guest-name");
-const printedInput = byId("printed");
-const printList = byId("print-list");
 const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
@@ -26,7 +24,6 @@ let index = 0;
 let busy = false;
 let saving = false;
 let saveFailed = false;
-let printTimer = null;
 const pending = [];
 
 const request = browser.request;
@@ -50,8 +47,8 @@ function updateControls() {
   byId("reload").disabled = busy || saving || !browser.diskStatus();
   byId("previous").disabled = busy || index <= 0;
   byId("next").disabled = busy || !hasPhoto || index >= state.photos.length - 1;
-  for (const id of ["jump", "destinations", "printed", "show-prints"]) {
-    byId(id).disabled = busy || !hasPhoto;
+  for (const control of [jump, destinations]) {
+    control.disabled = busy || !hasPhoto;
   }
   byId("guest-name").disabled = busy || saving || !hasPhoto;
   byId("add-guest").disabled = busy || saving || !hasPhoto;
@@ -130,57 +127,6 @@ function renderDestinations() {
   }));
 }
 
-function printNeeds(path) {
-  const printed = state.printed[path] ?? 0;
-  const needed = (state.reviews[path] ?? []).filter((name) => name !== "").length;
-  const remaining = Math.max(0, needed - printed);
-  return {printed, needed, remaining};
-}
-
-function renderPrintStatus() {
-  const {needed, remaining} = printNeeds(currentPhoto().path);
-  byId("print-status").textContent = `${needed} needed · ${remaining} still to print`;
-}
-
-function savePrinted() {
-  clearTimeout(printTimer);
-  printTimer = null;
-  if (!currentPhoto() || !printedInput.validity.valid) return;
-  const photo = currentPhoto().path;
-  const printed = printedInput.valueAsNumber;
-  if (printed === (state.printed[photo] ?? 0)) return;
-  state.printed[photo] = printed;
-  renderPrintStatus();
-  queueSave("/api/print-count", {photo, printed});
-}
-
-function showPrintList() {
-  savePrinted();
-  let total = 0;
-  const rows = state.photos.map(({path}, position) => {
-    const {printed, needed, remaining} = printNeeds(path);
-    total += remaining;
-    const row = document.createElement("tr");
-    const photo = row.insertCell();
-    const link = document.createElement("button");
-    link.type = "button";
-    link.className = "photo-link";
-    link.textContent = path;
-    link.addEventListener("click", () => {
-      printList.close();
-      navigate(position);
-    });
-    photo.append(link);
-    for (const value of [needed, printed, remaining]) {
-      row.insertCell().textContent = value;
-    }
-    return row;
-  });
-  byId("print-summary").textContent = `${total} copies still to print`;
-  byId("print-rows").replaceChildren(...rows);
-  printList.showModal();
-}
-
 function renderAssignmentSummary() {
   const assigned = Object.values(state.reviews).filter((choices) => choices.length > 0).length;
   const count = state.photos.length;
@@ -189,7 +135,6 @@ function renderAssignmentSummary() {
   byId("progress-label").textContent = `${assigned} of ${count} assigned`;
   const destinationsCount = state.reviews[currentPhoto().path]?.length ?? 0;
   byId("assignment-status").textContent = `${destinationsCount} selected`;
-  renderPrintStatus();
 }
 
 function renderPhoto() {
@@ -207,7 +152,6 @@ function renderPhoto() {
   byId("date").textContent = photo.date ? photo.date.replace("T", " ") : "No capture timestamp";
   browser.preview(image, byId("preview-error"), album, photo.path);
   renderDestinations();
-  printedInput.value = state.printed[photo.path] ?? 0;
   renderAssignmentSummary();
   updateControls();
 }
@@ -256,14 +200,12 @@ async function reloadAlbums(preferredAlbum) {
 
 function navigate(position) {
   if (!busy && position >= 0 && position < state.photos.length && position !== index) {
-    savePrinted();
     showPhoto(position);
   }
   jump.selectedIndex = index;
 }
 
 function switchAlbum(action) {
-  savePrinted();
   if (saving) return;
   if (pending.length && !window.confirm("Discard changes that could not be saved and reload from the workspace file?")) return;
   perform(action);
@@ -279,18 +221,8 @@ byId("previous").addEventListener("click", () => navigate(index - 1));
 byId("next").addEventListener("click", () => navigate(index + 1));
 jump.addEventListener("change", () => navigate(jump.selectedIndex));
 byId("retry-save").addEventListener("click", savePending);
-byId("show-prints").addEventListener("click", showPrintList);
-printedInput.addEventListener("input", () => {
-  clearTimeout(printTimer);
-  printTimer = setTimeout(savePrinted, 350);
-});
-printedInput.addEventListener("change", savePrinted);
-byId("print-form").addEventListener("submit", (event) => {
-  event.preventDefault();
-  savePrinted();
-});
 document.addEventListener("keydown", (event) => {
-  if (busy || !currentPhoto() || printList.open || byId("browser-source-dialog").open || event.defaultPrevented ||
+  if (busy || !currentPhoto() || byId("browser-source-dialog").open || event.defaultPrevented ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
       event.target.isContentEditable || event.target.matches('input:not([type="checkbox"]), select, textarea')) {
     return;
@@ -302,7 +234,6 @@ document.addEventListener("keydown", (event) => {
 });
 byId("guest-form").addEventListener("submit", (event) => {
   event.preventDefault();
-  savePrinted();
   if (saving || pending.length) return;
   perform(async () => {
     const {added} = await request("/api/guest", {album, name: guestName.value});
@@ -318,7 +249,7 @@ image.addEventListener("error", () => {
   byId("preview-error").hidden = false;
 });
 window.addEventListener("beforeunload", (event) => {
-  if (pending.length || printTimer !== null) {
+  if (pending.length) {
     event.preventDefault();
     event.returnValue = true;
   }
@@ -359,7 +290,6 @@ function showDiskStatus() {
   }));
 }
 byId("browser-set-workspace").addEventListener("click", () => {
-  savePrinted();
   if (saving || pending.length) return;
   if (!window.showDirectoryPicker || !navigator.locks) {
     errorBox.textContent = "Use Chrome or Microsoft Edge to save a project directly to a workspace folder.";
@@ -392,14 +322,12 @@ remember.addEventListener("change", () => {
 });
 const sourceDialog = byId("browser-source-dialog");
 byId("browser-add-source").addEventListener("click", () => {
-  savePrinted();
   if (!saving && !pending.length) sourceDialog.showModal();
 });
 byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
 for (const kind of ["folder", "zip"]) {
   byId("browser-" + kind).addEventListener("click", () => {
     sourceDialog.close();
-    savePrinted();
     if (saving || pending.length) return;
     perform(async () => {
       try {
@@ -419,7 +347,6 @@ importInput.addEventListener("change", () => {
   const file = importInput.files[0];
   importInput.value = "";
   if (!file) return;
-  savePrinted();
   if (saving || pending.length) return;
   perform(async () => {
     const filename = browser.diskStatus().filename;
@@ -437,7 +364,6 @@ importInput.addEventListener("change", () => {
   });
 });
 byId("browser-backup").addEventListener("click", () => {
-  savePrinted();
   if (saving || pending.length) return;
   perform(async () => {
     const path = await browser.backup();
@@ -446,7 +372,6 @@ byId("browser-backup").addEventListener("click", () => {
 });
 byId("final-link").addEventListener("click", (event) => {
   event.preventDefault();
-  savePrinted();
   if (!busy && !saving && !pending.length) browser.showFinal();
 });
 byId("browser-final").addEventListener("close", () => {

@@ -29,11 +29,6 @@ Use **Add Source Album** to choose a photo folder or one or more ZIP archives. S
 - Check or uncheck any destinations to save the selection immediately. A photo with no selections has zero destinations.
 - The workspace file stores the selected destinations for export.
 
-## Printing
-
-- **Copies already printed** starts at zero for each photo and saves automatically when you change it.
-- Open **Print list** for the whole album. It counts one print per assigned destination. **Still to print** subtracts copies already printed, with a minimum of zero. Select a photo name in the list to jump to it.
-
 ## Files and formats
 
 The sorter previews JPEG, PNG, WebP, GIF, BMP, and AVIF files. JPEG, PNG, and WebP photos with an EXIF capture date are sorted chronologically. Photos without a readable capture date follow in filename order. Convert HEIC, TIFF, or camera RAW files to a supported format before importing them.

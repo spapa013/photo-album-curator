@@ -69,17 +69,10 @@ fieldset label { display: flex; align-items: center; gap: .6rem; padding: .45rem
 fieldset label:hover { background: #f4f6f1; }
 input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex: none; margin: 0; accent-color: var(--accent); }
 .guest-form input { flex: 1; }
-.print-form { display: grid; gap: .3rem; border-top: 1px solid var(--border); padding-top: .75rem; }
-.print-form input { width: 6rem; }
 #retry-save { margin-top: .5rem; }
 #feedback { min-height: 1.35rem; color: var(--muted); font-size: .9rem; text-align: right; }
 dialog { width: min(48rem, 94vw); border: 1px solid var(--border); border-radius: .7rem; color: inherit; }
 dialog::backdrop { background: #20241f88; }
-#print-summary { margin: .65rem 0; font-weight: 600; }
-.table-scroll { max-height: 62vh; overflow: auto; }
-table { width: 100%; border-collapse: collapse; text-align: left; }
-th, td { padding: .45rem .65rem; border-bottom: 1px solid var(--border); }
-th { position: sticky; top: 0; background: #eef2eb; }
 .photo-link { border: 0; padding: .1rem; text-align: left; color: var(--accent); overflow-wrap: anywhere; }
 
 @media (max-width: 800px) {

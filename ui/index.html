@@ -61,7 +61,6 @@
       <div class="progress-row">
         <label for="progress" id="progress-label"></label>
         <progress id="progress"></progress>
-        <button id="show-prints" type="button">Print list</button>
       </div>
       <div class="layout">
         <section class="card photo-card" aria-label="Current photo">
@@ -97,38 +96,10 @@
               <button id="add-guest" type="submit">Add</button>
             </div>
           </form>
-          <form id="print-form" class="print-form">
-            <label for="printed">Copies already printed</label>
-            <div class="row">
-              <input id="printed" type="number" min="0" max="9007199254740991" step="1" required value="0">
-            </div>
-            <p id="print-status" class="hint"></p>
-          </form>
           <p id="feedback" role="status"></p>
         </section>
       </div>
     </div>
-    <dialog id="print-list" aria-labelledby="print-list-heading">
-      <div class="assignment-header">
-        <h2 id="print-list-heading">Print list</h2>
-        <form method="dialog"><button autofocus>Close</button></form>
-      </div>
-      <p class="hint">One print per assigned guest. Making a photo available to all destination albums adds zero prints.</p>
-      <p id="print-summary"></p>
-      <div class="table-scroll">
-        <table>
-          <thead>
-            <tr>
-              <th scope="col">Photo</th>
-              <th scope="col">Needed</th>
-              <th scope="col">Printed</th>
-              <th scope="col">Still to print</th>
-            </tr>
-          </thead>
-          <tbody id="print-rows"></tbody>
-        </table>
-      </div>
-    </dialog>
   </main>
 </body>
 </html>
