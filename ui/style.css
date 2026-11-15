@@ -144,6 +144,7 @@ dialog::backdrop { background: #20241f88; }
 .final-detail { overflow: hidden; }
 .final-preview { display: grid; place-items: center; grid-template: minmax(0, 1fr) / minmax(0, 1fr); height: clamp(220px, 46vh, 700px); background: #20241f; color: white; }
 #final-image { display: block; width: 100%; height: 100%; object-fit: contain; }
+.final-navigation { gap: .5rem; margin-bottom: .6rem; }
 #final-filename { overflow-wrap: anywhere; }
 #final-order { flex-wrap: wrap; margin-top: .65rem; }
 #final-position-label:has(:disabled) { color: var(--muted); }

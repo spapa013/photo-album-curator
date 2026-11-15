@@ -7,6 +7,8 @@ const filter = byId("final-filter");
 const search = byId("final-search");
 const overwriteRenders = byId("final-overwrite");
 const image = byId("final-image");
+const previousButton = byId("final-previous");
+const nextButton = byId("final-next");
 const includeCheckbox = byId("final-include");
 const positionCheckbox = byId("final-position");
 const rankForm = byId("final-rank-form");
@@ -30,6 +32,9 @@ function currentPhoto() {
 }
 
 function updatePhotoControls(photo) {
+  const current = list.querySelector(".current");
+  previousButton.disabled = busy || !current?.previousElementSibling;
+  nextButton.disabled = busy || !current?.nextElementSibling;
   includeCheckbox.disabled = busy || !photo;
   positionCheckbox.disabled = busy || !photo?.included;
   for (const control of rankForm.elements) control.disabled = busy || photo?.rank == null;
@@ -99,6 +104,25 @@ function choose(photo) {
   selected = key(photo);
   for (const row of list.children) row.classList.toggle("current", row.dataset.key === selected);
   renderDetail();
+}
+
+function browsePhotos(direction) {
+  if (busy || draggedRow) return;
+  const current = list.querySelector(".current");
+  const row = direction < 0 ? current?.previousElementSibling : current?.nextElementSibling;
+  if (!row) return;
+  choose(plan.photos.find((photo) => key(photo) === row.dataset.key));
+  return row;
+}
+
+function browseFromPreview(direction) {
+  const row = browsePhotos(direction);
+  if (!row) return;
+  // Scroll only the list so the preview and navigation stay on screen.
+  const listBounds = list.getBoundingClientRect();
+  const rowBounds = row.getBoundingClientRect();
+  if (rowBounds.top < listBounds.top) list.scrollTop += rowBounds.top - listBounds.top;
+  else if (rowBounds.bottom > listBounds.bottom) list.scrollTop += rowBounds.bottom - listBounds.bottom;
 }
 
 function edit(photo, action, values = {}) {
@@ -239,6 +263,8 @@ byId("final-reload").addEventListener("click", () => {
 });
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
+previousButton.addEventListener("click", () => browseFromPreview(-1));
+nextButton.addEventListener("click", () => browseFromPreview(1));
 document.addEventListener("keydown", (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || draggedRow) return;
   if (openContextHelp()) return;
@@ -263,12 +289,10 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  const current = list.querySelector(".current");
-  if (!current) return;
+  if (!list.querySelector(".current")) return;
   event.preventDefault();
-  const row = event.key === "ArrowLeft" ? current.previousElementSibling : current.nextElementSibling;
+  const row = browsePhotos(event.key === "ArrowLeft" ? -1 : 1);
   if (!row) return;
-  choose(plan.photos.find((photo) => key(photo) === row.dataset.key));
   if (list.contains(focused)) row.querySelector(".final-photo-link").focus({preventScroll: true});
   row.scrollIntoView({block: "nearest", inline: "nearest"});
 });
