@@ -5,7 +5,7 @@ const albumSelect = byId("album");
 const jump = byId("jump");
 const destinations = byId("destinations");
 const image = byId("image");
-const guestName = byId("guest-name");
+const destinationName = byId("destination-name");
 const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
@@ -51,8 +51,8 @@ function updateControls() {
   for (const control of [jump, destinations]) {
     control.disabled = busy || !hasPhoto;
   }
-  byId("guest-name").disabled = busy || saving || !hasPhoto;
-  byId("add-guest").disabled = busy || saving || !hasPhoto;
+  byId("destination-name").disabled = busy || saving || !hasPhoto;
+  byId("add-destination").disabled = busy || saving || !hasPhoto;
   byId("retry-save").hidden = !saveFailed;
   byId("retry-save").disabled = busy || saving;
 }
@@ -109,32 +109,40 @@ function queueSave(path, changes) {
 
 function renderDestinations() {
   const photo = currentPhoto().path;
-  const selected = new Set(state.reviews[photo] ?? []);
-  const choices = [["", "All destinations"], ...state.guests.map((name) => [name, name])];
-  destinations.replaceChildren(...choices.map(([name, label]) => {
+  const current = state.assignments[photo];
+  const selected = new Set(current?.destinationIds);
+  if (current?.allDestinations) selected.add(null);
+  const choices = [{id: null, name: "All destinations"}, ...state.destinations];
+  destinations.replaceChildren(...choices.map(({id, name}) => {
     const row = document.createElement("label");
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
-    checkbox.checked = selected.has(name);
+    checkbox.checked = selected.has(id);
     checkbox.addEventListener("change", () => {
-      if (checkbox.checked) selected.add(name);
-      else selected.delete(name);
-      state.reviews[photo] = [...selected];
+      if (checkbox.checked) selected.add(id);
+      else selected.delete(id);
+      const assignment = {path: photo, destinationIds: [...selected].filter((id) => id !== null),
+        allDestinations: selected.has(null)};
+      state.assignments[photo] = assignment;
       renderAssignmentSummary();
-      queueSave("/api/review", {photo, destinations: [...selected]});
+      queueSave("/api/assignment", assignment);
     });
-    row.append(checkbox, label);
+    row.append(checkbox, name);
     return row;
   }));
 }
 
+function countAssignments(assignment) {
+  return assignment ? assignment.destinationIds.length + Number(assignment.allDestinations) : 0;
+}
+
 function renderAssignmentSummary() {
-  const assigned = Object.values(state.reviews).filter((choices) => choices.length > 0).length;
+  const assigned = Object.values(state.assignments).filter((assignment) => countAssignments(assignment) > 0).length;
   const count = state.photos.length;
   byId("progress").max = count;
   byId("progress").value = assigned;
   byId("progress-label").textContent = `${assigned} of ${count} assigned`;
-  const destinationsCount = state.reviews[currentPhoto().path]?.length ?? 0;
+  const destinationsCount = countAssignments(state.assignments[currentPhoto().path]);
   byId("assignment-status").textContent = `${destinationsCount} selected`;
 }
 
@@ -159,7 +167,7 @@ function renderPhoto() {
 
 function showPhoto(position) {
   index = position;
-  if (currentPhoto()) preference(`curator-photo:${album}`, currentPhoto().path);
+  if (currentPhoto()) preference(`lastPhoto:${album}`, currentPhoto().path);
   renderPhoto();
 }
 
@@ -170,21 +178,21 @@ async function openAlbum(key) {
   pending.length = 0;
   saveFailed = false;
   feedback.textContent = "";
-  preference("curator-album", key);
+  preference("selectedSourceAlbum", key);
   albumSelect.value = key;
-  guestName.value = "";
+  destinationName.value = "";
   browser.preview(image, byId("preview-error"), album, null);
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));
-  const lastPhoto = preference(`curator-photo:${key}`);
+  const lastPhoto = preference(`lastPhoto:${key}`);
   let position = state.photos.findIndex((photo) => photo.path === lastPhoto);
-  if (position < 0) position = state.photos.findIndex((photo) => photo.path === state.resume);
+  if (position < 0) position = state.photos.findIndex((photo) => photo.path === state.resumePath);
   showPhoto(Math.max(position, 0));
 }
 
 async function reloadAlbums(preferredAlbum) {
   const choices = await request("/api/albums");
-  const preferred = preferredAlbum ?? album ?? preference("curator-album");
+  const preferred = preferredAlbum ?? album ?? preference("selectedSourceAlbum");
   const choice = choices.find(({id}) => id === preferred) ?? choices[0];
   albumSelect.replaceChildren(...choices.map(({id, label}) =>
     new Option(!browser.available(id) ? label + " (reopen source)" : label, id)));
@@ -193,7 +201,7 @@ async function reloadAlbums(preferredAlbum) {
     album = null;
     state = null;
     index = 0;
-    guestName.value = "";
+    destinationName.value = "";
     feedback.textContent = "";
     renderPhoto();
   }
@@ -233,16 +241,16 @@ document.addEventListener("keydown", (event) => {
     navigate(index + (event.key === "ArrowLeft" ? -1 : 1));
   }
 });
-byId("guest-form").addEventListener("submit", (event) => {
+byId("destination-form").addEventListener("submit", (event) => {
   event.preventDefault();
   if (saving || pending.length) return;
   perform(async () => {
-    const {added} = await request("/api/guest", {album, name: guestName.value});
-    state.guests.push(added);
-    state.guests.sort((a, b) => a.localeCompare(b));
-    guestName.value = "";
+    const {added} = await request("/api/destination", {name: destinationName.value});
+    state.destinations.push(added);
+    state.destinations.sort((a, b) => a.name.localeCompare(b.name));
+    destinationName.value = "";
     renderDestinations();
-    feedback.textContent = `Added ${added}.`;
+    feedback.textContent = `Added ${added.name}.`;
   });
 });
 image.addEventListener("error", () => {

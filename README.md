@@ -16,11 +16,13 @@ For offline use, download `PhotoAlbumCurator-desktop.zip` when available, or bui
 2. Extract the desktop ZIP and run **StartPhotoAlbumCurator.bat** on Windows or **StartPhotoAlbumCurator.command** on macOS. You can also run `python3 launch.py` on macOS.
 3. Open [the local app](http://127.0.0.1:8765/) in Chrome or Microsoft Edge and keep the launcher running.
 
-Both editions use the same browser app and workspace file. Choose the same workspace folder in either edition. The browser grants external album access separately for the hosted and local addresses.
+Hosted and offline builds of the same release use the same workspace format. The browser grants external album access separately for the hosted and local addresses.
 
 ## Set up a workspace
 
 Click **Set Workspace** and choose a folder where the app can write. The app opens or creates `photo_album_curator_data.json` in that folder. Choose the same folder when you return to reopen your saved project.
+
+The workspace file stores `destinations`, `sourceAlbums`, and `destinationChoices`. Assignments refer to destinations by ID and use an explicit `allDestinations` flag. Each destination choice records inclusion and position for a photo. Older workspace formats require conversion before they can be opened or imported.
 
 Use **Add Source** to choose a photo folder or one or more ZIP archives. Set **Album folder depth** in that dialog. Depth **0** puts all photos in one album. The default, depth **1**, groups by the first folder level, such as `Trip/City` and `Trip/Coast`. Depth **2** also gives second-level folders their own albums, such as `Trip/City/Day 1`. Photos in shallower folders go into albums named after those folders.
 

@@ -18,7 +18,7 @@ h2 { font-size: 1.25rem; }
 .top { display: flex; align-items: end; justify-content: space-between; flex-wrap: wrap; gap: 1rem; }
 .subtitle, .hint { color: var(--muted); }
 .subtitle { margin-top: .2rem; }
-.guest-form { display: grid; gap: .3rem; }
+.destination-form { display: grid; gap: .3rem; }
 label { font-weight: 600; }
 .row { display: flex; align-items: center; gap: .5rem; min-width: 0; }
 
@@ -68,7 +68,7 @@ fieldset { margin: 0; border: 1px solid var(--border); border-radius: .45rem; pa
 fieldset label { display: flex; align-items: center; gap: .6rem; padding: .45rem .55rem; cursor: pointer; overflow-wrap: anywhere; }
 fieldset label:hover { background: #f4f6f1; }
 input[type="checkbox"] { width: 1.05rem; height: 1.05rem; flex: none; margin: 0; accent-color: var(--accent); }
-.guest-form input { flex: 1; }
+.destination-form input { flex: 1; }
 #retry-save { margin-top: .5rem; }
 #feedback { min-height: 1.35rem; color: var(--muted); font-size: .9rem; text-align: right; }
 dialog { width: min(48rem, 94vw); border: 1px solid var(--border); border-radius: .7rem; color: inherit; }

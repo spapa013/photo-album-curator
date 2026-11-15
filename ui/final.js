@@ -1,7 +1,7 @@
 "use strict";
 
 const byId = (id) => document.getElementById(id);
-const guestSelect = byId("final-guest");
+const destinationSelect = byId("final-destination");
 const list = byId("final-list");
 const filter = byId("final-filter");
 const search = byId("final-search");
@@ -36,11 +36,11 @@ function updatePhotoControls(photo) {
 }
 
 function updateControls() {
-  const hasGuests = guestSelect.options.length > 0;
-  guestSelect.disabled = busy || !hasGuests;
-  byId("final-reload").disabled = busy || !hasGuests;
-  byId("final-render-all").disabled = busy || !hasGuests;
-  overwriteRenders.disabled = busy || !hasGuests;
+  const hasDestinations = destinationSelect.options.length > 0;
+  destinationSelect.disabled = busy || !hasDestinations;
+  byId("final-reload").disabled = busy || !hasDestinations;
+  byId("final-render-all").disabled = busy || !hasDestinations;
+  overwriteRenders.disabled = busy || !hasDestinations;
   byId("final-render").disabled = busy || !plan?.photos.some((photo) => photo.included);
   for (const row of list.children) {
     const grip = row.querySelector(".final-grip");
@@ -104,7 +104,7 @@ function choose(photo) {
 function edit(photo, action, values = {}) {
   perform(async () => {
     plan = await request("edit", {
-      guest: plan.guest, token: plan.token, album: photo.album, photo: photo.path, action, ...values,
+      destinationId: plan.destinationId, token: plan.token, album: photo.album, photo: photo.path, action, ...values,
     });
     render();
     feedback.textContent = "Album choices saved.";
@@ -221,21 +221,21 @@ list.addEventListener("drop", (event) => {
   if (position !== photo.rank) edit(photo, "rank", {position});
 });
 
-async function openGuest(guest) {
-  plan = await request("open", {guest});
-  guestSelect.value = guest;
-  await browser.preference("curator-final-guest", guest);
+async function openDestination(destinationId) {
+  plan = await request("open", {destinationId});
+  destinationSelect.value = destinationId;
+  await browser.preference("selectedDestinationId", destinationId);
   feedback.textContent = "";
   render();
 }
 
-guestSelect.addEventListener("change", () => {
-  const guest = Number(guestSelect.value);
-  if (plan) guestSelect.value = plan.guest;
-  perform(() => openGuest(guest), "Loading album…");
+destinationSelect.addEventListener("change", () => {
+  const destinationId = Number(destinationSelect.value);
+  if (plan) destinationSelect.value = plan.destinationId;
+  perform(() => openDestination(destinationId), "Loading album…");
 });
 byId("final-reload").addEventListener("click", () => {
-  perform(() => openGuest(Number(guestSelect.value)), "Loading album…");
+  perform(() => openDestination(Number(destinationSelect.value)), "Loading album…");
 });
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
@@ -321,11 +321,11 @@ document.querySelector("header a").addEventListener("click", (event) => {
 });
 
 perform(async () => {
-  const guests = await request("guests");
-  byId("no-guests").hidden = guests.length > 0;
-  guestSelect.replaceChildren(...guests.map(({id, name}) => new Option(name, id)));
-  const preferred = Number(browser.preference("curator-final-guest"));
-  const guest = guests.find(({id}) => id === preferred) ?? guests[0];
-  if (guest) await openGuest(guest.id);
+  const destinations = await request("destinations");
+  byId("no-destinations").hidden = destinations.length > 0;
+  destinationSelect.replaceChildren(...destinations.map(({id, name}) => new Option(name, id)));
+  const preferred = Number(browser.preference("selectedDestinationId"));
+  const destination = destinations.find(({id}) => id === preferred) ?? destinations[0];
+  if (destination) await openDestination(destination.id);
   else feedback.textContent = "";
 }, "Loading destinations…");

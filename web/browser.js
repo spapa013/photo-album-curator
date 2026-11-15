@@ -14,6 +14,8 @@
   let disk = null;
   let externalHandles = new Map();
   const projectFilename = "photo_album_curator_data.json";
+  const projectFormat = "photo-album-curator";
+  const projectVersion = 2;
   const diskLock = "photo-album-curator-workspace-file";
   const photoType = /\.(jpe?g|jfif|png|webp|gif|bmp|avif)$/i;
   const basename = (path) => path.split("/").at(-1);
@@ -24,7 +26,14 @@
     compare(folded(a.album ?? ""), folded(b.album ?? "")) ||
     compare(folded(a.path), folded(b.path)) || compare(a.path, b.path) ||
     compare(a.album ?? "", b.album ?? "");
-  const projectDefault = () => ({format: "photo-album-curator", version: 1, guests: [], albums: [], choices: []});
+  const projectDefault = () => ({
+    format: projectFormat,
+    version: projectVersion,
+    workspace: {id: crypto.randomUUID(), rememberExternal: false, sources: [], preferences: {}},
+    destinations: [],
+    sourceAlbums: [],
+    destinationChoices: [],
+  });
   let handlesDatabase;
   function openHandlesDatabase() {
     return new Promise((resolve, reject) => {
@@ -87,8 +96,15 @@
   }
 
   async function readWorkspaceFile(handle) {
-    const state = JSON.parse(await (await handle.getFile()).text());
-    if (!validBackup(state)) throw new Error(handle.name + " is not a valid Curator project.");
+    return parseProject(await (await handle.getFile()).text(), handle.name);
+  }
+
+  function parseProject(text, filename) {
+    const state = JSON.parse(text);
+    if (state?.format === projectFormat && state.version !== projectVersion) {
+      throw new Error(filename + " uses an unsupported project format version.");
+    }
+    if (!validProject(state)) throw new Error(filename + " is not a valid Curator project.");
     return state;
   }
 
@@ -113,11 +129,9 @@
         if (error.name !== "NotFoundError") throw error;
         file = await folder.getFileHandle(projectFilename, {create: true});
       }
-      const state = (await file.getFile()).size ? await readWorkspaceFile(file) : projectDefault();
-      if (!state.workspace) {
-        state.workspace = {id: crypto.randomUUID(), rememberExternal: false, sources: [], preferences: {}};
-        await writeWorkspaceFile(file, state);
-      }
+      const existing = await file.getFile();
+      const state = existing.size ? parseProject(await existing.text(), file.name) : projectDefault();
+      if (!existing.size) await writeWorkspaceFile(file, state);
       return {folder, file, state};
     });
     disk = opened;
@@ -132,13 +146,13 @@
     const {rememberExternal, sources: records} = disk.state.workspace;
     return {name: disk.folder.name, filename: disk.file.name, rememberExternal, sources: records.map((record) => ({
       id: record.id, name: record.name,
-      available: record.albums.length > 0 && record.albums.every((key) => sources.has(key)),
+      available: record.sourceAlbumKeys.length > 0 && record.sourceAlbumKeys.every((key) => sources.has(key)),
       reconnect: record.relative === null && rememberExternal && externalHandles.has(sourceHandleId(record)),
     }))};
   }
 
   function sourceForAlbum(album) {
-    return disk?.state.workspace.sources.find((record) => record.albums.includes(album))?.id;
+    return disk?.state.workspace.sources.find((record) => record.sourceAlbumKeys.includes(album))?.id;
   }
 
   const sourceHandleId = (record) => record.handleId ?? record.id;
@@ -168,11 +182,6 @@
 
   const validAlbumDepth = (depth) => Number.isSafeInteger(depth) && depth >= 0;
 
-  function sourceDepth(record) {
-    if (record.albumFolderDepth !== undefined) return record.albumFolderDepth;
-    if (record.mergeSubfolders !== undefined) return record.mergeSubfolders ? 0 : 1;
-  }
-
   async function scanSource(handle, kind, depth, progress, sourceName = handle.name) {
     if (kind === "folder") return scanFolder(handle, depth, progress, sourceName);
     const groups = new Map();
@@ -182,14 +191,14 @@
 
   function registerAlbums(state, record, opened) {
     const conflict = state.workspace.sources.find((item) => item !== record &&
-      item.albums.some((key) => opened.has(key)));
+      item.sourceAlbumKeys.some((key) => opened.has(key)));
     if (conflict) throw new Error("An album with that name is linked to " + conflict.name + ".");
-    record.albums = Array.from(new Set([...record.albums, ...opened.keys()]));
+    record.sourceAlbumKeys = Array.from(new Set([...record.sourceAlbumKeys, ...opened.keys()]));
     updateAlbums(state, opened);
   }
 
   function updateOpenSource(record, opened) {
-    for (const key of record.albums) sources.delete(key);
+    for (const key of record.sourceAlbumKeys) sources.delete(key);
     for (const [key, photos] of opened) sources.set(key, photos);
   }
 
@@ -203,17 +212,17 @@
     const relative = await disk.folder.resolve(handle);
     const sameSource = (record) => matchesLocation(record, kind, handle.name, relative);
     const previous = (await project()).workspace.sources.find(sameSource);
-    const grouping = previous ? sourceDepth(previous) : depth;
+    const grouping = previous?.albumFolderDepth ?? depth;
     const opened = await scanSource(handle, kind, grouping, progress, previous?.albumRoot);
     const state = await project((state) => {
       const records = state.workspace.sources;
       let record = records.find(sameSource);
       if ((previous && (record?.id !== previous.id || sourceHandleId(record) !== sourceHandleId(previous))) ||
-          (record && sourceDepth(record) !== grouping)) {
+          (record && record.albumFolderDepth !== grouping)) {
         throw new Error("The source changed in the workspace. Use Add Source again.");
       }
       if (!record) {
-        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: [], albumFolderDepth: grouping};
+        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, sourceAlbumKeys: [], albumFolderDepth: grouping};
         records.push(record);
       }
       registerAlbums(state, record, opened);
@@ -252,11 +261,11 @@
   }
 
   async function refreshSource(record, handle, progress) {
-    const depth = sourceDepth(record);
+    const depth = record.albumFolderDepth;
     const opened = await scanSource(handle, record.kind, depth, progress, record.albumRoot);
     const state = await project((state) => {
       const current = state.workspace.sources.find(({id}) => id === record.id);
-      if (!current || sourceHandleId(current) !== sourceHandleId(record) || sourceDepth(current) !== depth) {
+      if (!current || sourceHandleId(current) !== sourceHandleId(record) || current.albumFolderDepth !== depth) {
         throw new Error("The source changed in the workspace. Set Workspace again.");
       }
       registerAlbums(state, current, opened);
@@ -298,7 +307,7 @@
     const [handle] = await pickSources(record.kind, false);
     const relative = await workspace.folder.resolve(handle);
     const albumRoot = record.albumRoot ?? record.name;
-    const opened = await scanSource(handle, record.kind, sourceDepth(record), progress, albumRoot);
+    const opened = await scanSource(handle, record.kind, record.albumFolderDepth, progress, albumRoot);
     if (!opened.size) throw new Error("The replacement source has no supported photos.");
     if (disk !== workspace) throw new Error("Reopen the workspace and relink the source again.");
 
@@ -306,16 +315,17 @@
     const state = await project((state) => {
       const records = state.workspace.sources;
       const current = records.find((item) => item.id === id);
-      if (!current || sourceHandleId(current) !== sourceHandleId(record) || sourceDepth(current) !== sourceDepth(record)) {
+      if (!current || sourceHandleId(current) !== sourceHandleId(record) ||
+          current.albumFolderDepth !== record.albumFolderDepth) {
         throw new Error("The source changed in the workspace. Set Workspace again.");
       }
       if (records.some((item) => item !== current && matchesLocation(item, record.kind, handle.name, relative))) {
         throw new Error("The replacement is already linked to another source in this workspace.");
       }
       let matched = 0;
-      for (const album of state.albums) {
-        if (!current.albums.includes(album.key)) continue;
-        const paths = new Set([...album.photos.map(({path}) => path), ...album.reviews.map(([path]) => path)]);
+      for (const album of state.sourceAlbums) {
+        if (!current.sourceAlbumKeys.includes(album.key)) continue;
+        const paths = new Set([...album.photos.map(({path}) => path), ...album.assignments.map(({path}) => path)]);
         for (const path of paths) {
           if (opened.get(album.key)?.has(path)) matched++;
           else missing++;
@@ -423,22 +433,17 @@
     return buffer.subarray(0, length);
   }
 
-  function groupPhotos(groups, photos, sourceName, depth, legacyFolder = false) {
+  function groupPhotos(groups, photos, sourceName, depth) {
     const albums = new Map();
     for (const photo of photos) {
       let key = sourceName;
-      let entry = photo;
-      if (legacyFolder) {
-        const slash = photo.path.indexOf("/");
-        key = slash < 0 ? "" : photo.path.slice(0, slash);
-        entry = {...photo, path: photo.path.slice(slash + 1)};
-      } else if (depth > 0) {
+      if (depth > 0) {
         const parts = photo.path.split("/");
         const folder = parts.slice(0, Math.min(depth, parts.length - 1)).join("/");
         if (folder) key = sourceName + "/" + folder;
       }
       if (!albums.has(key)) albums.set(key, []);
-      albums.get(key).push(entry);
+      albums.get(key).push(photo);
     }
     for (const [key, entries] of albums) {
       if (groups.has(key)) throw new Error("Two albums use the name " + key + ".");
@@ -499,9 +504,7 @@
     }
     await collect(folder, "");
     const groups = new Map();
-    // Older workspaces use album keys and photo paths from the original grouping rules.
-    const legacyFolder = depth === undefined && sourceName.toLowerCase() === "albums";
-    groupPhotos(groups, photos, sourceName, depth, legacyFolder);
+    groupPhotos(groups, photos, sourceName, depth);
     for (const file of archives) await groupArchive(groups, file, depth);
     return scanGroups(groups, progress);
   }
@@ -511,50 +514,44 @@
     const archive = new zip.ZipReader(new zip.BlobReader(file));
     const entries = (await archive.getEntries()).filter((entry) => !entry.directory &&
       photoType.test(entry.filename) && !entry.filename.startsWith("__MACOSX/"));
-    const first = entries[0]?.filename.split("/")[0] + "/";
-    const prefix = depth === undefined && entries.every((entry) => entry.filename.startsWith(first))
-      ? first.length : 0;
-    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), sourceName, depth);
+    groupPhotos(groups, entries.map((entry) => ({path: entry.filename, entry})), sourceName, depth);
   }
 
   function addAlbum(state, key) {
-    let album = state.albums.find((item) => item.key === key);
+    let album = state.sourceAlbums.find((item) => item.key === key);
     if (!album) {
-      // Keep the legacy printed field in the version 1 file for older builds.
-      album = {key, resume: null, revision: 0, photos: [], reviews: [], printed: []};
-      state.albums.push(album);
+      album = {key, resumePath: null, revision: 0, photos: [], assignments: []};
+      state.sourceAlbums.push(album);
     }
     return album;
   }
 
-  const albumLabel = (key) => key || "Photos directly in Albums";
-  const guestList = (state) => state.guests.slice().sort((a, b) => compare(folded(a.name), folded(b.name)));
+  const destinationList = (state) => state.destinations.slice().sort((a, b) => compare(folded(a.name), folded(b.name)));
   const photoKey = (album, path) => JSON.stringify([album, path]);
 
   function albumState(state, key) {
-    const album = state.albums.find((item) => item.key === key);
+    const album = state.sourceAlbums.find((item) => item.key === key);
     if (!album) throw new Error("Open a photo folder or ZIP first.");
     const photos = album.photos.slice().sort(comparePhotos);
-    return {photos, resume: album.resume, revision: album.revision,
-      guests: guestList(state).map(({name}) => name), reviews: Object.fromEntries(album.reviews)};
+    return {photos, resumePath: album.resumePath, revision: album.revision, destinations: destinationList(state),
+      assignments: Object.fromEntries(album.assignments.map((assignment) => [assignment.path, assignment]))};
   }
 
-  function finalPlan(state, guest) {
-    const person = state.guests.find(({id}) => id === guest);
-    if (!person) throw new Error("Choose a destination.");
-    const choices = new Map(state.choices.filter((row) => row.guest === guest)
-      .map((row) => [photoKey(row.album, row.path), row]));
+  function finalPlan(state, destinationId) {
+    const destination = state.destinations.find(({id}) => id === destinationId);
+    if (!destination) throw new Error("Choose a destination.");
+    const choices = new Map(state.destinationChoices.filter((row) => row.destinationId === destinationId)
+      .map((row) => [photoKey(row.sourceAlbumKey, row.path), row]));
     const photos = [];
-    for (const album of state.albums) {
+    for (const album of state.sourceAlbums) {
       const dates = new Map(album.photos.map(({path, date}) => [path, date]));
-      for (const [path, destinations] of album.reviews) {
-        const assigned = destinations.includes(person.name);
-        const shared = destinations.includes("");
+      for (const {path, destinationIds, allDestinations: shared} of album.assignments) {
+        const assigned = destinationIds.includes(destinationId);
         if (!assigned && !shared) continue;
         const choice = choices.get(photoKey(album.key, path));
         const included = choice?.included ?? assigned;
         photos.push({album: album.key, path, assigned, shared, included,
-          rank: included ? choice?.rank ?? null : null, date: dates.get(path) ?? null,
+          rank: included ? choice?.position ?? null : null, date: dates.get(path) ?? null,
           available: sources.get(album.key)?.has(path) ?? false});
       }
     }
@@ -563,85 +560,87 @@
     const token = JSON.stringify(photos);
     let rank = 0;
     for (const photo of photos) if (photo.rank !== null) photo.rank = ++rank;
-    return {guest, name: person.name, photos, token};
+    return {destinationId, name: destination.name, photos, token};
   }
 
   function editFinal(state, data) {
-    const plan = finalPlan(state, data.guest);
+    const plan = finalPlan(state, data.destinationId);
     if (plan.token !== data.token) throw new Error("Album choices changed. Reload this destination album.");
     const photo = plan.photos.find((item) => item.album === data.album && item.path === data.photo);
     if (!photo) throw new Error("This photo is unavailable for this destination.");
-    let choice = state.choices.find((item) => item.guest === data.guest &&
-      item.album === data.album && item.path === data.photo);
+    let choice = state.destinationChoices.find((item) => item.destinationId === data.destinationId &&
+      item.sourceAlbumKey === data.album && item.path === data.photo);
     if (!choice) {
-      choice = {guest: data.guest, album: data.album, path: data.photo, included: null, rank: null};
-      state.choices.push(choice);
+      choice = {destinationId: data.destinationId, sourceAlbumKey: data.album, path: data.photo, included: null, position: null};
+      state.destinationChoices.push(choice);
     }
     const ordered = plan.photos.filter((item) => item !== photo && item.rank !== null)
       .map((item) => photoKey(item.album, item.path));
     let position = photo.rank;
     if (data.action === "include" && typeof data.included === "boolean") {
       choice.included = data.included;
-      if (!data.included || !photo.included) choice.rank = null;
+      if (!data.included || !photo.included) choice.position = null;
     } else if (data.action === "unrank") {
-      choice.rank = null;
+      choice.position = null;
     } else if (data.action === "rank" && photo.included) {
       if (!Number.isInteger(data.position) || data.position < 1 || data.position > ordered.length + 1) {
         throw new Error("Choose a position within the custom order.");
       }
       position = data.position;
-      choice.rank = position;
+      choice.position = position;
     } else {
       throw new Error("Choose a valid album action.");
     }
-    if (choice.rank !== null) ordered.splice(position - 1, 0, photoKey(photo.album, photo.path));
+    if (choice.position !== null) ordered.splice(position - 1, 0, photoKey(photo.album, photo.path));
     const ranks = new Map(ordered.map((key, index) => [key, index + 1]));
-    for (const item of state.choices) {
-      if (item.guest !== data.guest) continue;
-      const rank = ranks.get(photoKey(item.album, item.path));
-      if (rank !== undefined) item.rank = rank;
+    for (const item of state.destinationChoices) {
+      if (item.destinationId !== data.destinationId) continue;
+      const rank = ranks.get(photoKey(item.sourceAlbumKey, item.path));
+      if (rank !== undefined) item.position = rank;
     }
-    state.choices = state.choices.filter((item) => item.included !== null || item.rank !== null);
+    state.destinationChoices = state.destinationChoices.filter((item) => item.included !== null || item.position !== null);
   }
 
   async function request(path, data) {
     if (path === "/api/preference") return preference(data.key, data.value);
     if (path === "/api/albums") {
       const state = await project();
-      return state.albums.map(({key}) => ({id: key, label: albumLabel(key)}))
+      return state.sourceAlbums.map(({key}) => ({id: key, label: key}))
         .sort((a, b) => compare(folded(a.label), folded(b.label)));
     }
     if (path === "/api/open") return albumState(await project(), data.album);
-    if (path === "/api/final/guests") return guestList(await project());
-    if (path === "/api/final/open") return finalPlan(await project(), data.guest);
-    if (path === "/api/final/edit") return finalPlan(await project((state) => editFinal(state, data)), data.guest);
-    if (path === "/api/guest") {
+    if (path === "/api/final/destinations") return destinationList(await project());
+    if (path === "/api/final/open") return finalPlan(await project(), data.destinationId);
+    if (path === "/api/final/edit") return finalPlan(await project((state) => editFinal(state, data)), data.destinationId);
+    if (path === "/api/destination") {
       const name = data.name.trim().normalize("NFC");
-      if (!name || name.length > 80) throw new Error("Enter a guest name.");
+      if (!name || name.length > 80) throw new Error("Enter a destination name.");
+      let added;
       await project((state) => {
-        if (state.guests.some((guest) => folded(guest.name) === folded(name))) {
-          throw new Error("A guest with that name already exists.");
+        if (state.destinations.some((destination) => folded(destination.name) === folded(name))) {
+          throw new Error("A destination with that name already exists.");
         }
-        state.guests.push({name, id: Math.max(0, ...state.guests.map(({id}) => id)) + 1});
+        added = {name, id: Math.max(0, ...state.destinations.map(({id}) => id)) + 1};
+        state.destinations.push(added);
       });
-      return {added: name};
+      return {added};
     }
-    if (path !== "/api/review") throw new Error("Unknown album action.");
+    if (path !== "/api/assignment") throw new Error("Unknown album action.");
     const state = await project((state) => {
-      const album = state.albums.find(({key}) => key === data.album);
+      const album = state.sourceAlbums.find(({key}) => key === data.album);
       if (!album || album.revision !== data.revision) throw new Error("This album changed. Reload it to continue.");
-      if (!album.photos.some(({path}) => path === data.photo)) throw new Error("Reopen the source album.");
-      const destinationNames = new Set(["", ...state.guests.map(({name}) => name)]);
-      if (!Array.isArray(data.destinations) || data.destinations.some((name) => !destinationNames.has(name))) {
+      if (!album.photos.some(({path}) => path === data.path)) throw new Error("Reopen the source album.");
+      if (!validAssignment(data, new Set(state.destinations.map(({id}) => id)))) {
         throw new Error("Choose a valid destination.");
       }
-      const reviews = new Map(album.reviews);
-      reviews.set(data.photo, [...new Set(data.destinations)]);
-      album.reviews = Array.from(reviews);
-      album.resume = data.photo;
+      const assignments = new Map(album.assignments.map((assignment) => [assignment.path, assignment]));
+      assignments.set(data.path, {path: data.path, destinationIds: [...new Set(data.destinationIds)],
+        allDestinations: data.allDestinations});
+      album.assignments = Array.from(assignments.values());
+      album.resumePath = data.path;
       album.revision++;
     });
-    return {revision: state.albums.find(({key}) => key === data.album).revision};
+    return {revision: state.sourceAlbums.find(({key}) => key === data.album).revision};
   }
 
   function mime(path) {
@@ -685,11 +684,11 @@
 
   const fileTimestamp = () => new Date().toISOString().replaceAll(":", "-").replace(".", "-");
 
-  function archiveStems(guests) {
+  function archiveStems(destinations) {
     const claimed = new Set();
     // Keep literal destination names from taking a disambiguated or timestamped filename.
     const generatedEnding = /(?: \[\d+\]| - \d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?: \(\d+\))?)$/i;
-    return new Map(guests.slice().sort((a, b) => a.id - b.id).map(({id, name}) => {
+    return new Map(destinations.slice().sort((a, b) => a.id - b.id).map(({id, name}) => {
       const stem = archiveStem(name);
       const key = folded(stem);
       const needsId = claimed.has(key) || generatedEnding.test(stem);
@@ -758,14 +757,14 @@
       if (disk !== workspace) throw new Error("Reopen the destination albums in their workspace.");
       const photoSources = sources;
       const plans = destination
-        ? [finalPlan(snapshot, destination.guest)]
-        : guestList(snapshot).map(({id}) => finalPlan(snapshot, id));
+        ? [finalPlan(snapshot, destination.destinationId)]
+        : destinationList(snapshot).map(({id}) => finalPlan(snapshot, id));
       if (destination && plans[0].token !== destination.token) {
         throw new Error("Album choices changed. Reload this destination album.");
       }
-      const stems = archiveStems(snapshot.guests);
+      const stems = archiveStems(snapshot.destinations);
       const jobs = plans.map((plan) => ({
-        plan, photos: plan.photos.filter(({included}) => included), stem: stems.get(plan.guest),
+        plan, photos: plan.photos.filter(({included}) => included), stem: stems.get(plan.destinationId),
       })).filter(({photos}) => photos.length);
       if (destination && !jobs.length) throw new Error("Include at least one photo.");
       const failures = [];
@@ -785,25 +784,35 @@
     });
   }
 
-  function validBackup(state) {
-    const pairs = (rows, valid) => Array.isArray(rows) && rows.every((row) =>
-      Array.isArray(row) && row.length === 2 && typeof row[0] === "string" && valid(row[1]));
-    return state?.format === "photo-album-curator" && state.version === 1 &&
-      validWorkspace(state.workspace) &&
-      Array.isArray(state.guests) && state.guests.every((guest) => guest && Number.isSafeInteger(guest.id) &&
-        guest.id > 0 && typeof guest.name === "string" && guest.name.length > 0) &&
-      Array.isArray(state.albums) && state.albums.every((album) => album && typeof album.key === "string" &&
-        (album.resume === null || typeof album.resume === "string") &&
+  function validAssignment(assignment, destinationIds) {
+    return assignment && typeof assignment.path === "string" &&
+      typeof assignment.allDestinations === "boolean" &&
+      Array.isArray(assignment.destinationIds) && assignment.destinationIds.every((id) => destinationIds.has(id));
+  }
+
+  function validProject(state) {
+    if (state?.format !== projectFormat || state.version !== projectVersion || !validWorkspace(state.workspace) ||
+        !Array.isArray(state.destinations) || !state.destinations.every((destination) =>
+          destination && Number.isSafeInteger(destination.id) && destination.id > 0 &&
+          typeof destination.name === "string" && destination.name.length > 0)) return false;
+    const destinationIds = new Set(state.destinations.map(({id}) => id));
+    if (destinationIds.size !== state.destinations.length ||
+        !Array.isArray(state.sourceAlbums) || !state.sourceAlbums.every((album) => album &&
+        typeof album.key === "string" && album.key.length > 0 &&
+        (album.resumePath === null || typeof album.resumePath === "string") &&
         Number.isSafeInteger(album.revision) && album.revision >= 0 &&
         Array.isArray(album.photos) && album.photos.every((photo) => photo && typeof photo.path === "string" &&
           (photo.date === null || typeof photo.date === "string")) &&
-        pairs(album.reviews, (names) => Array.isArray(names) && names.every((name) =>
-          name === "" || state.guests.some((guest) => guest.name === name))) &&
-        pairs(album.printed, (count) => Number.isSafeInteger(count) && count >= 0)) &&
-      Array.isArray(state.choices) && state.choices.every((choice) => choice &&
-        state.guests.some(({id}) => id === choice.guest) && typeof choice.album === "string" &&
+        Array.isArray(album.assignments) && album.assignments.every((assignment) => validAssignment(assignment, destinationIds)))) {
+      return false;
+    }
+    const albumKeys = new Set(state.sourceAlbums.map(({key}) => key));
+    return albumKeys.size === state.sourceAlbums.length &&
+      state.workspace.sources.every(({sourceAlbumKeys}) => sourceAlbumKeys.every((key) => albumKeys.has(key))) &&
+      Array.isArray(state.destinationChoices) && state.destinationChoices.every((choice) => choice &&
+        destinationIds.has(choice.destinationId) && albumKeys.has(choice.sourceAlbumKey) &&
         typeof choice.path === "string" && (choice.included === null || typeof choice.included === "boolean") &&
-        (choice.rank === null || (Number.isSafeInteger(choice.rank) && choice.rank > 0)));
+        (choice.position === null || (Number.isSafeInteger(choice.position) && choice.position > 0)));
   }
 
   function validWorkspace(value) {
@@ -816,12 +825,11 @@
         ["folder", "zip"].includes(record.kind) &&
         (record.albumRoot === undefined || (typeof record.albumRoot === "string" && record.albumRoot.length > 0)) &&
         (record.handleId === undefined || (typeof record.handleId === "string" && record.handleId.length > 0)) &&
-        (record.albumFolderDepth === undefined || validAlbumDepth(record.albumFolderDepth)) &&
-        (record.mergeSubfolders === undefined || typeof record.mergeSubfolders === "boolean") &&
+        validAlbumDepth(record.albumFolderDepth) &&
         (record.relative === null || (Array.isArray(record.relative) &&
           record.relative.every((name) => typeof name === "string" && name !== "." && name !== ".." &&
             name.length > 0 && !name.includes("/") && !name.includes("\\")))) &&
-        Array.isArray(record.albums) && record.albums.every((key) => typeof key === "string"));
+        Array.isArray(record.sourceAlbumKeys) && record.sourceAlbumKeys.every((key) => typeof key === "string"));
   }
 
   async function importProject(file, progress) {
@@ -829,13 +837,12 @@
     if (file.name.toLowerCase() !== projectFilename && !backupName.test(file.name)) {
       throw new Error("Choose photo_album_curator_data.json or a Curator backup JSON file.");
     }
-    const state = JSON.parse(await file.text());
-    if (!validBackup(state)) throw new Error("The file is not a valid Photo Album Curator project.");
+    const state = parseProject(await file.text(), file.name);
     const importedWorkspace = state.workspace;
     await project((previous) => {
       state.workspace = {...importedWorkspace, id: previous.workspace.id};
-      for (const album of state.albums) {
-        const existing = previous.albums.find(({key}) => key === album.key);
+      for (const album of state.sourceAlbums) {
+        const existing = previous.sourceAlbums.find(({key}) => key === album.key);
         album.revision = Math.max(album.revision, existing?.revision ?? 0) + 1;
       }
       return state;
