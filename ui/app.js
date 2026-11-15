@@ -306,7 +306,7 @@ byId("browser-set-workspace").addEventListener("click", () => {
     album = null;
     state = null;
     showDiskStatus();
-    byId("empty").textContent = "Use Add Source Album to add a photo folder or ZIP to this workspace.";
+    byId("empty").textContent = "Use Add Source to add a photo folder or ZIP to this workspace.";
     await reloadAlbums();
   });
 });
@@ -321,8 +321,11 @@ remember.addEventListener("change", () => {
   });
 });
 const sourceDialog = byId("browser-source-dialog");
+const mergeSubfolders = byId("browser-merge-subfolders");
 byId("browser-add-source").addEventListener("click", () => {
-  if (!saving && !pending.length) sourceDialog.showModal();
+  if (saving || pending.length) return;
+  mergeSubfolders.checked = false;
+  sourceDialog.showModal();
 });
 byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
 for (const kind of ["folder", "zip"]) {
@@ -331,7 +334,7 @@ for (const kind of ["folder", "zip"]) {
     if (saving || pending.length) return;
     perform(async () => {
       try {
-        const opened = await browser.chooseSource(kind, progress);
+        const opened = await browser.chooseSource(kind, progress, mergeSubfolders.checked);
         await reloadAlbums(opened.includes(album) ? album : opened[0]);
       } catch (error) {
         if (error.name !== "AbortError") throw error;

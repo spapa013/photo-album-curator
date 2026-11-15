@@ -161,47 +161,62 @@
     });
   }
 
-  async function scanSource(handle, kind, progress) {
-    if (kind === "folder") return scanFolder(handle, progress);
-    const file = await handle.getFile();
-    return scanEntries([{file, path: file.name}], null, progress);
+  async function scanSource(handle, kind, mergeSubfolders, progress) {
+    if (kind === "folder") return scanFolder(handle, mergeSubfolders, progress);
+    const groups = new Map();
+    await groupArchive(groups, await handle.getFile(), mergeSubfolders);
+    return scanGroups(groups, progress);
   }
 
-  async function connectSource(handle, kind, progress) {
+  function registerAlbums(state, record, opened) {
+    const conflict = state.workspace.sources.find((item) => item !== record &&
+      item.albums.some((key) => opened.has(key)));
+    if (conflict) throw new Error("An album with that name is linked to " + conflict.name + ".");
+    record.albums = Array.from(new Set([...record.albums, ...opened.keys()]));
+    updateAlbums(state, opened);
+  }
+
+  function updateOpenSource(record, opened) {
+    for (const key of record.albums) sources.delete(key);
+    for (const [key, photos] of opened) sources.set(key, photos);
+  }
+
+  async function connectSource(handle, kind, mergeSubfolders, progress) {
     const relative = await disk.folder.resolve(handle);
-    const opened = await scanSource(handle, kind, progress);
-    const samePath = (record) => relative !== null
+    const sameSource = (record) => record.kind === kind && (relative !== null
       ? JSON.stringify(record.relative) === JSON.stringify(relative)
-      : record.relative === null && record.name === handle.name;
+      : record.relative === null && record.name === handle.name);
+    const previous = (await project()).workspace.sources.find(sameSource);
+    const grouping = previous ? previous.mergeSubfolders : mergeSubfolders;
+    const opened = await scanSource(handle, kind, grouping, progress);
     const state = await project((state) => {
       const records = state.workspace.sources;
-      let record = records.find((item) => item.kind === kind && samePath(item));
-      const conflict = records.find((item) => item !== record &&
-        item.albums.some((key) => opened.has(key)));
-      if (conflict) throw new Error("An album with that name is linked to " + conflict.name + ".");
+      let record = records.find(sameSource);
+      if ((previous && record?.id !== previous.id) || (record && record.mergeSubfolders !== grouping)) {
+        throw new Error("The source changed in the workspace. Use Add Source again.");
+      }
       if (!record) {
-        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: []};
+        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: [], mergeSubfolders: grouping};
         records.push(record);
       }
-      record.albums = Array.from(new Set([...record.albums, ...opened.keys()]));
-      updateAlbums(state, opened);
+      registerAlbums(state, record, opened);
     });
+    const record = state.workspace.sources.find(sameSource);
     if (relative === null) {
-      const record = state.workspace.sources.find((item) => item.kind === kind && samePath(item));
       externalHandles.set(record.id, handle);
       if (state.workspace.rememberExternal) await saveHandles(state);
     }
-    for (const [key, photos] of opened) sources.set(key, photos);
+    updateOpenSource(record, opened);
     return [...opened.keys()];
   }
 
-  async function chooseSource(kind, progress) {
+  async function chooseSource(kind, progress, mergeSubfolders = false) {
     const handles = kind === "folder"
       ? [await window.showDirectoryPicker({mode: "read", id: "curator-albums"})]
       : await window.showOpenFilePicker({multiple: true, id: "curator-zips",
         types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}]});
     const opened = [];
-    for (const handle of handles) opened.push(...await connectSource(handle, kind, progress));
+    for (const handle of handles) opened.push(...await connectSource(handle, kind, mergeSubfolders, progress));
     return opened;
   }
 
@@ -214,6 +229,18 @@
     return handle;
   }
 
+  async function refreshSource(record, handle, progress) {
+    const opened = await scanSource(handle, record.kind, record.mergeSubfolders, progress);
+    const state = await project((state) => {
+      const current = state.workspace.sources.find(({id}) => id === record.id);
+      if (!current || current.mergeSubfolders !== record.mergeSubfolders) {
+        throw new Error("The source changed in the workspace. Set Workspace again.");
+      }
+      registerAlbums(state, current, opened);
+    });
+    updateOpenSource(state.workspace.sources.find(({id}) => id === record.id), opened);
+  }
+
   async function restoreSources(progress) {
     const {workspace} = disk.state;
     if (workspace.rememberExternal) {
@@ -224,7 +251,7 @@
       try {
         const handle = record.relative === null ? externalHandles.get(record.id) : await relativeHandle(record);
         if (handle && await handle.queryPermission({mode: "read"}) === "granted") {
-          await openScanned(await scanSource(handle, record.kind, progress));
+          await refreshSource(record, handle, progress);
         }
       } catch {
         // The source remains listed so the user can reconnect it after a move or permission change.
@@ -236,7 +263,7 @@
     const handle = externalHandles.get(id);
     if (!handle || await handle.requestPermission({mode: "read"}) !== "granted") return;
     const record = disk.state.workspace.sources.find((item) => item.id === id);
-    if (record) await openScanned(await scanSource(handle, record.kind, progress));
+    if (record) await refreshSource(record, handle, progress);
   }
 
   function captureDate(bytes) {
@@ -325,43 +352,34 @@
     return buffer.subarray(0, length);
   }
 
-  async function scanEntries(entries, root, progress) {
-    const groups = new Map();
-    if (root !== null) {
-      const loose = [];
-      for (const {file, path} of entries) {
-        if (!path.includes("/") && /\.zip$/i.test(path)) {
-          loose.push(file);
-          continue;
-        }
-        if (root.toLowerCase() === "albums") {
-          const slash = path.indexOf("/");
-          if (slash < 0) {
-            loose.push(file);
-            continue;
-          }
-          const key = path.slice(0, slash);
-          if (!groups.has(key)) groups.set(key, []);
-          groups.get(key).push({path: path.slice(slash + 1), file});
-        } else {
-          if (!groups.has(root)) groups.set(root, []);
-          groups.get(root).push({path, file});
-        }
+  function groupPhotos(groups, photos, sourceName, mergeSubfolders, legacyFolder = false) {
+    const albums = new Map();
+    for (const photo of photos) {
+      const slash = photo.path.indexOf("/");
+      let key = sourceName;
+      let entry = photo;
+      if (legacyFolder) {
+        key = slash < 0 ? "" : photo.path.slice(0, slash);
+        entry = {...photo, path: photo.path.slice(slash + 1)};
+      } else if (mergeSubfolders === false && slash >= 0) {
+        key = sourceName + "/" + photo.path.slice(0, slash);
       }
-      await readArchives(loose.filter((file) => /\.zip$/i.test(file.name)), groups);
-      if (loose.some((file) => photoType.test(file.name))) {
-        groups.set("", loose.map((file) => ({file, path: file.name})));
-      }
-    } else {
-      await readArchives(entries.map(({file}) => file), groups);
+      if (!albums.has(key)) albums.set(key, []);
+      albums.get(key).push(entry);
     }
+    for (const [key, entries] of albums) {
+      if (groups.has(key)) throw new Error("Two albums use the name " + key + ".");
+      groups.set(key, entries);
+    }
+  }
 
+  async function scanGroups(groups, progress) {
     const opened = new Map();
     let total = 0;
     for (const [key, candidates] of groups) {
       const photos = new Map();
       const seen = new Set();
-      for (const photo of candidates.filter(({path}) => photoType.test(path))) {
+      for (const photo of candidates) {
         if (photo.path.split("/").some((part) => !part || part === "." || part === ".." || part.includes("\\"))) {
           throw new Error("Invalid photo path in " + (key || "Albums") + ".");
         }
@@ -392,39 +410,38 @@
     }
   }
 
-  async function openScanned(opened) {
-    await project((state) => updateAlbums(state, opened));
-    for (const [key, photos] of opened) sources.set(key, photos);
-    return Array.from(opened.keys());
-  }
-
-  async function scanFolder(folder, progress) {
-    const entries = [];
+  async function scanFolder(folder, mergeSubfolders, progress) {
+    const photos = [];
+    const archives = [];
     async function collect(directory, prefix) {
       for await (const entry of directory.values()) {
         if (entry.kind === "directory") {
           await collect(entry, prefix + entry.name + "/");
-        } else if (photoType.test(entry.name) ||
-                    (!prefix && /\.zip$/i.test(entry.name))) {
-          entries.push({path: prefix + entry.name, file: await entry.getFile()});
+        } else if (photoType.test(entry.name)) {
+          photos.push({path: prefix + entry.name, file: await entry.getFile()});
+        } else if (!prefix && /\.zip$/i.test(entry.name)) {
+          archives.push(await entry.getFile());
         }
       }
     }
     await collect(folder, "");
-    return scanEntries(entries, folder.name, progress);
+    const groups = new Map();
+    // Older workspaces use album keys and photo paths from the original grouping rules.
+    const legacyFolder = mergeSubfolders === undefined && folder.name.toLowerCase() === "albums";
+    groupPhotos(groups, photos, folder.name, mergeSubfolders, legacyFolder);
+    for (const file of archives) await groupArchive(groups, file, mergeSubfolders);
+    return scanGroups(groups, progress);
   }
 
-  async function readArchives(files, groups) {
-    for (const file of files) {
-      if (!/\.zip$/i.test(file.name)) continue;
-      if (groups.has(file.name)) throw new Error("Two albums use the name " + file.name + ".");
-      const archive = new zip.ZipReader(new zip.BlobReader(file));
-      const entries = (await archive.getEntries()).filter((entry) => !entry.directory &&
-        photoType.test(entry.filename) && !entry.filename.startsWith("__MACOSX/"));
-      const first = entries[0]?.filename.split("/")[0] + "/";
-      const prefix = entries.every((entry) => entry.filename.startsWith(first)) ? first.length : 0;
-      groups.set(file.name, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})));
-    }
+  async function groupArchive(groups, file, mergeSubfolders) {
+    if (!/\.zip$/i.test(file.name)) return;
+    const archive = new zip.ZipReader(new zip.BlobReader(file));
+    const entries = (await archive.getEntries()).filter((entry) => !entry.directory &&
+      photoType.test(entry.filename) && !entry.filename.startsWith("__MACOSX/"));
+    const first = entries[0]?.filename.split("/")[0] + "/";
+    const prefix = mergeSubfolders === undefined && entries.every((entry) => entry.filename.startsWith(first))
+      ? first.length : 0;
+    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), file.name, mergeSubfolders);
   }
 
   function addAlbum(state, key) {
@@ -718,6 +735,7 @@
       Array.isArray(value.sources) && value.sources.every((record) => record &&
         typeof record.id === "string" && typeof record.name === "string" &&
         ["folder", "zip"].includes(record.kind) &&
+        (record.mergeSubfolders === undefined || typeof record.mergeSubfolders === "boolean") &&
         (record.relative === null || (Array.isArray(record.relative) &&
           record.relative.every((name) => typeof name === "string" && name !== "." && name !== ".." &&
             name.length > 0 && !name.includes("/") && !name.includes("\\")))) &&

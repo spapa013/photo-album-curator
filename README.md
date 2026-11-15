@@ -22,7 +22,11 @@ Both editions use the same browser app and workspace file. Choose the same works
 
 Click **Set Workspace** and choose a folder where the app can write. The app opens or creates `photo_album_curator_data.json` in that folder. Choose the same folder when you return to reopen your saved project.
 
-Use **Add Source Album** to choose a photo folder or one or more ZIP archives. A folder named `Albums` opens its immediate subfolders and ZIPs as separate albums. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to let this browser remember access to sources outside the workspace. Use **Reconnect** when a remembered source needs permission again.
+Use **Add Source** to choose a photo folder or one or more ZIP archives. By default, each top-level folder of photos becomes its own source album. For example, `Trip/City` and `Trip/Coast` become separate albums, and photos directly inside `Trip` go into the `Trip` album.
+
+Check **Merge subfolders** to browse the photos as one source album. Each photo keeps its full path within the folder or ZIP. ZIPs directly inside a selected folder are opened as separate sources of photos and use the same grouping choice.
+
+The workspace remembers the grouping for each source. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to let this browser remember access to sources outside the workspace. Use **Reconnect** when a remembered source needs permission again.
 
 ## Assign photos
 
@@ -36,7 +40,7 @@ The app previews JPEG, PNG, WebP, GIF, BMP, and AVIF files. JPEG, PNG, and WebP 
 
 ## Destination albums
 
-Open **Curate destination albums** and pick a destination. Photos assigned directly to it start included. Shared-only photos are available for every destination and can be included individually. Inclusion and ordering choices save per destination across all source albums.
+Open **Curate destinations** and pick a destination. Photos assigned directly to it start included. Shared-only photos are available for every destination and can be included individually. Inclusion and ordering choices save per destination across all source albums.
 
 Use **All**, **Included**, **Positioned**, or **Excluded** to filter the photo list. The inclusion count below the destination selector shows how many photos will render. Select an included photo to set or clear a custom position. Numbered photos come first, followed by included photos in capture order. Photos without capture timestamps follow in filename order.
 
@@ -46,7 +50,7 @@ Use **Render destination album** or **Render all destination albums**, then conf
 
 ## Back up and restore
 
-**Download backup** writes a snapshot to `backups/photo_album_curator_data_backup_<timestamp>.json` inside the workspace. To restore it, use **Import progress**, select the backup or a `photo_album_curator_data.json` file, then confirm the replacement of the active workspace's saved data.
+**Save backup** writes a snapshot to `backups/photo_album_curator_data_backup_<timestamp>.json` inside the workspace. To restore it, use **Import state**, select the backup or a `photo_album_curator_data.json` file, then confirm the replacement of the active workspace's saved data.
 
 ## Build from source
 
