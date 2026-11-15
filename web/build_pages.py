@@ -17,6 +17,7 @@ from build_guide import build_guide
 
 
 ROOT = Path(__file__).resolve().parents[1]
+SITE_URL = "https://spapa013.github.io/photo-album-curator/"
 FIRST_VERSION = "v0.3.0"
 RELEASE_TAG = re.compile(r"v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)")
 
@@ -40,10 +41,18 @@ def build(ref, destination, version):
         if not (built / "user-guide" / "index.html").is_file():
             readme = (checkout / "README.md").read_text(encoding="utf-8")
             _, _, body = readme.partition("\n")
-            body = body.replace("](https://spapa013.github.io/photo-album-curator/)", "](../)")
+            body = body.replace(f"]({SITE_URL})", "](../)")
             guide = "# User guide\n\nThese instructions come from this release’s README.\n" + body
             build_guide(guide, built, version)
         shutil.copytree(built, destination)
+
+
+def add_latest_canonical_links(output):
+    for route in ("", "user-guide/"):
+        path = output / route / "index.html"
+        canonical = f'  <link rel="canonical" href="{SITE_URL}{route}">\n'
+        page = path.read_text(encoding="utf-8")
+        path.write_text(page.replace("</head>", canonical + "</head>", 1), encoding="utf-8")
 
 
 def add_version_navigation(output, latest, tags, development_commit):
@@ -106,6 +115,7 @@ def main():
     with TemporaryDirectory(dir=ROOT) as directory:
         output = Path(directory) / "site"
         build(f"refs/tags/{latest}", output, latest)
+        add_latest_canonical_links(output)
         versions = output / "versions"
         shutil.copytree(output, versions / latest, ignore=shutil.ignore_patterns("versions"))
         for tag in sorted(tags - {latest}):
