@@ -42,17 +42,17 @@
     </section>
     <dialog id="browser-source-dialog" aria-labelledby="browser-source-heading">
       <h2 id="browser-source-heading">Add Source</h2>
+      <div class="source-type-options row">
+        <button id="browser-folder" type="button">Choose folder</button>
+        <button id="browser-zip" type="button">Choose ZIP</button>
+        <button id="browser-cancel-source" type="button">Cancel</button>
+      </div>
       <label class="row source-depth">
         Album folder depth
         <input id="browser-album-depth" type="number" min="0" max="9007199254740991" step="1" value="1"
                aria-describedby="browser-album-depth-hint" required>
       </label>
       <p id="browser-album-depth-hint" class="hint">0 for one album. 1 for top-level folders.</p>
-      <div class="source-type-options row">
-        <button id="browser-folder" type="button">Choose folder</button>
-        <button id="browser-zip" type="button">Choose ZIP</button>
-        <button id="browser-cancel-source" type="button">Cancel</button>
-      </div>
     </dialog>
     <dialog id="browser-final" aria-label="Destination albums"><iframe title="Destination albums"></iframe></dialog>
 
