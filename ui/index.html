@@ -41,9 +41,12 @@
     </section>
     <dialog id="browser-source-dialog" aria-labelledby="browser-source-heading">
       <h2 id="browser-source-heading">Add Source</h2>
-      <label class="row source-merge">
-        <input id="browser-merge-subfolders" type="checkbox"> Merge subfolders
+      <label class="row source-depth">
+        Album folder depth
+        <input id="browser-album-depth" type="number" min="0" max="9007199254740991" step="1" value="1"
+               aria-describedby="browser-album-depth-hint" required>
       </label>
+      <p id="browser-album-depth-hint" class="hint">0 for one album. 1 for top-level folders.</p>
       <div class="source-type-options row">
         <button id="browser-folder" type="button">Choose folder</button>
         <button id="browser-zip" type="button">Choose ZIP</button>

@@ -22,11 +22,11 @@ Both editions use the same browser app and workspace file. Choose the same works
 
 Click **Set Workspace** and choose a folder where the app can write. The app opens or creates `photo_album_curator_data.json` in that folder. Choose the same folder when you return to reopen your saved project.
 
-Use **Add Source** to choose a photo folder or one or more ZIP archives. By default, each top-level folder of photos becomes its own source album. For example, `Trip/City` and `Trip/Coast` become separate albums, and photos directly inside `Trip` go into the `Trip` album.
+Use **Add Source** to choose a photo folder or one or more ZIP archives. Set **Album folder depth** in that dialog. Depth **0** puts all photos in one album. The default, depth **1**, groups by the first folder level, such as `Trip/City` and `Trip/Coast`. Depth **2** also gives second-level folders their own albums, such as `Trip/City/Day 1`. Photos in shallower folders go into albums named after those folders.
 
-Check **Merge subfolders** to browse the photos as one source album. Each photo keeps its full path within the folder or ZIP. ZIPs directly inside a selected folder are opened as separate sources of photos and use the same grouping choice.
+Each photo keeps its full path within the folder or ZIP. ZIPs directly inside a selected folder use the same depth and are grouped separately from the folder's photos.
 
-The workspace remembers the grouping for each source. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to let this browser remember access to sources outside the workspace. Use **Reconnect** when a remembered source needs permission again.
+The workspace remembers the depth for each source. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to let this browser remember access to sources outside the workspace. Use **Reconnect** when a remembered source needs permission again.
 
 ## Assign photos
 

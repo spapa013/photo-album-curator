@@ -1,8 +1,8 @@
 .browser-tools { display: flex; flex-wrap: wrap; margin: 1rem 0; gap: .5rem; align-items: center; }
 .browser-tools .hint { flex-basis: 100%; }
 .privacy-note { display: inline-block; margin-inline-start: .65rem; font-size: .9rem; }
-.source-merge, .source-type-options { margin-top: .7rem; }
-.source-type-options { flex-wrap: wrap; }
+.source-depth, .source-type-options { flex-wrap: wrap; margin-top: .7rem; }
+#browser-album-depth { width: 5rem; }
 #browser-project-status:empty { display: none; }
 .browser-workspace { flex-basis: 100%; flex-wrap: wrap; margin-bottom: .25rem; }
 #browser-album-controls { flex-basis: 100%; flex-wrap: wrap; }

@@ -321,20 +321,21 @@ remember.addEventListener("change", () => {
   });
 });
 const sourceDialog = byId("browser-source-dialog");
-const mergeSubfolders = byId("browser-merge-subfolders");
+const albumDepth = byId("browser-album-depth");
 byId("browser-add-source").addEventListener("click", () => {
   if (saving || pending.length) return;
-  mergeSubfolders.checked = false;
+  albumDepth.value = albumDepth.defaultValue;
   sourceDialog.showModal();
 });
 byId("browser-cancel-source").addEventListener("click", () => sourceDialog.close());
 for (const kind of ["folder", "zip"]) {
   byId("browser-" + kind).addEventListener("click", () => {
+    if (saving || pending.length || !albumDepth.reportValidity()) return;
+    const depth = albumDepth.valueAsNumber;
     sourceDialog.close();
-    if (saving || pending.length) return;
     perform(async () => {
       try {
-        const opened = await browser.chooseSource(kind, progress, mergeSubfolders.checked);
+        const opened = await browser.chooseSource(kind, progress, depth);
         await reloadAlbums(opened.includes(album) ? album : opened[0]);
       } catch (error) {
         if (error.name !== "AbortError") throw error;

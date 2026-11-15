@@ -161,10 +161,17 @@
     });
   }
 
-  async function scanSource(handle, kind, mergeSubfolders, progress) {
-    if (kind === "folder") return scanFolder(handle, mergeSubfolders, progress);
+  const validAlbumDepth = (depth) => Number.isSafeInteger(depth) && depth >= 0;
+
+  function sourceDepth(record) {
+    if (record.albumFolderDepth !== undefined) return record.albumFolderDepth;
+    if (record.mergeSubfolders !== undefined) return record.mergeSubfolders ? 0 : 1;
+  }
+
+  async function scanSource(handle, kind, depth, progress) {
+    if (kind === "folder") return scanFolder(handle, depth, progress);
     const groups = new Map();
-    await groupArchive(groups, await handle.getFile(), mergeSubfolders);
+    await groupArchive(groups, await handle.getFile(), depth);
     return scanGroups(groups, progress);
   }
 
@@ -181,22 +188,22 @@
     for (const [key, photos] of opened) sources.set(key, photos);
   }
 
-  async function connectSource(handle, kind, mergeSubfolders, progress) {
+  async function connectSource(handle, kind, depth, progress) {
     const relative = await disk.folder.resolve(handle);
     const sameSource = (record) => record.kind === kind && (relative !== null
       ? JSON.stringify(record.relative) === JSON.stringify(relative)
       : record.relative === null && record.name === handle.name);
     const previous = (await project()).workspace.sources.find(sameSource);
-    const grouping = previous ? previous.mergeSubfolders : mergeSubfolders;
+    const grouping = previous ? sourceDepth(previous) : depth;
     const opened = await scanSource(handle, kind, grouping, progress);
     const state = await project((state) => {
       const records = state.workspace.sources;
       let record = records.find(sameSource);
-      if ((previous && record?.id !== previous.id) || (record && record.mergeSubfolders !== grouping)) {
+      if ((previous && record?.id !== previous.id) || (record && sourceDepth(record) !== grouping)) {
         throw new Error("The source changed in the workspace. Use Add Source again.");
       }
       if (!record) {
-        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: [], mergeSubfolders: grouping};
+        record = {id: crypto.randomUUID(), kind, name: handle.name, relative, albums: [], albumFolderDepth: grouping};
         records.push(record);
       }
       registerAlbums(state, record, opened);
@@ -210,13 +217,14 @@
     return [...opened.keys()];
   }
 
-  async function chooseSource(kind, progress, mergeSubfolders = false) {
+  async function chooseSource(kind, progress, depth = 1) {
+    if (!validAlbumDepth(depth)) throw new Error("Enter a whole number of folders, starting at zero.");
     const handles = kind === "folder"
       ? [await window.showDirectoryPicker({mode: "read", id: "curator-albums"})]
       : await window.showOpenFilePicker({multiple: true, id: "curator-zips",
         types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}]});
     const opened = [];
-    for (const handle of handles) opened.push(...await connectSource(handle, kind, mergeSubfolders, progress));
+    for (const handle of handles) opened.push(...await connectSource(handle, kind, depth, progress));
     return opened;
   }
 
@@ -230,10 +238,11 @@
   }
 
   async function refreshSource(record, handle, progress) {
-    const opened = await scanSource(handle, record.kind, record.mergeSubfolders, progress);
+    const depth = sourceDepth(record);
+    const opened = await scanSource(handle, record.kind, depth, progress);
     const state = await project((state) => {
       const current = state.workspace.sources.find(({id}) => id === record.id);
-      if (!current || current.mergeSubfolders !== record.mergeSubfolders) {
+      if (!current || sourceDepth(current) !== depth) {
         throw new Error("The source changed in the workspace. Set Workspace again.");
       }
       registerAlbums(state, current, opened);
@@ -352,17 +361,19 @@
     return buffer.subarray(0, length);
   }
 
-  function groupPhotos(groups, photos, sourceName, mergeSubfolders, legacyFolder = false) {
+  function groupPhotos(groups, photos, sourceName, depth, legacyFolder = false) {
     const albums = new Map();
     for (const photo of photos) {
-      const slash = photo.path.indexOf("/");
       let key = sourceName;
       let entry = photo;
       if (legacyFolder) {
+        const slash = photo.path.indexOf("/");
         key = slash < 0 ? "" : photo.path.slice(0, slash);
         entry = {...photo, path: photo.path.slice(slash + 1)};
-      } else if (mergeSubfolders === false && slash >= 0) {
-        key = sourceName + "/" + photo.path.slice(0, slash);
+      } else if (depth > 0) {
+        const parts = photo.path.split("/");
+        const folder = parts.slice(0, Math.min(depth, parts.length - 1)).join("/");
+        if (folder) key = sourceName + "/" + folder;
       }
       if (!albums.has(key)) albums.set(key, []);
       albums.get(key).push(entry);
@@ -410,7 +421,7 @@
     }
   }
 
-  async function scanFolder(folder, mergeSubfolders, progress) {
+  async function scanFolder(folder, depth, progress) {
     const photos = [];
     const archives = [];
     async function collect(directory, prefix) {
@@ -427,21 +438,21 @@
     await collect(folder, "");
     const groups = new Map();
     // Older workspaces use album keys and photo paths from the original grouping rules.
-    const legacyFolder = mergeSubfolders === undefined && folder.name.toLowerCase() === "albums";
-    groupPhotos(groups, photos, folder.name, mergeSubfolders, legacyFolder);
-    for (const file of archives) await groupArchive(groups, file, mergeSubfolders);
+    const legacyFolder = depth === undefined && folder.name.toLowerCase() === "albums";
+    groupPhotos(groups, photos, folder.name, depth, legacyFolder);
+    for (const file of archives) await groupArchive(groups, file, depth);
     return scanGroups(groups, progress);
   }
 
-  async function groupArchive(groups, file, mergeSubfolders) {
+  async function groupArchive(groups, file, depth) {
     if (!/\.zip$/i.test(file.name)) return;
     const archive = new zip.ZipReader(new zip.BlobReader(file));
     const entries = (await archive.getEntries()).filter((entry) => !entry.directory &&
       photoType.test(entry.filename) && !entry.filename.startsWith("__MACOSX/"));
     const first = entries[0]?.filename.split("/")[0] + "/";
-    const prefix = mergeSubfolders === undefined && entries.every((entry) => entry.filename.startsWith(first))
+    const prefix = depth === undefined && entries.every((entry) => entry.filename.startsWith(first))
       ? first.length : 0;
-    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), file.name, mergeSubfolders);
+    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), file.name, depth);
   }
 
   function addAlbum(state, key) {
@@ -735,6 +746,7 @@
       Array.isArray(value.sources) && value.sources.every((record) => record &&
         typeof record.id === "string" && typeof record.name === "string" &&
         ["folder", "zip"].includes(record.kind) &&
+        (record.albumFolderDepth === undefined || validAlbumDepth(record.albumFolderDepth)) &&
         (record.mergeSubfolders === undefined || typeof record.mergeSubfolders === "boolean") &&
         (record.relative === null || (Array.isArray(record.relative) &&
           record.relative.every((name) => typeof name === "string" && name !== "." && name !== ".." &&
