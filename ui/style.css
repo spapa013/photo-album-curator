@@ -35,6 +35,33 @@ button { font-weight: 600; cursor: pointer; }
 button:hover:not(:disabled) { background: #eef2eb; }
 button:disabled { cursor: default; opacity: .55; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.help-toggle { flex: none; width: 1.65rem; height: 1.65rem; padding: 0; border-radius: 50%; color: var(--accent); }
+.help-panel {
+  width: min(19rem, calc(100vw - 2rem));
+  padding: .75rem .9rem;
+  border: 1px solid var(--border);
+  border-radius: .55rem;
+  color: inherit;
+  background: white;
+  box-shadow: 0 .35rem 1.1rem #20241f24;
+  font-size: .9rem;
+}
+.help-panel a { display: inline-block; margin-top: .35rem; color: var(--accent); }
+@supports (position-area: block-end span-inline-start) {
+  .help-panel {
+    inset: auto;
+    margin: .35rem 0;
+    position-area: block-end span-inline-start;
+    position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline, --help-centered, --help-centered flip-block;
+  }
+  @position-try --help-centered {
+    position-area: block-end span-all;
+    justify-self: center;
+  }
+}
+@supports not selector(:popover-open) {
+  .help-toggle, .help-panel { display: none; }
+}
 select, input { min-width: 0; }
 #album { max-width: min(53vw, 23rem); }
 #loading, .notice { margin-top: 1rem; }

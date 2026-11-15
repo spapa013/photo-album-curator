@@ -6,6 +6,7 @@ const list = byId("final-list");
 const filter = byId("final-filter");
 const search = byId("final-search");
 const overwriteRenders = byId("final-overwrite");
+const overwriteHelp = byId("overwrite-help");
 const image = byId("final-image");
 const includeCheckbox = byId("final-include");
 const positionCheckbox = byId("final-position");
@@ -241,6 +242,7 @@ filter.addEventListener("change", render);
 search.addEventListener("input", render);
 document.addEventListener("keydown", (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || draggedRow) return;
+  if (overwriteHelp.hidePopover && overwriteHelp.matches(":popover-open")) return;
   if (event.key === "Escape") {
     event.preventDefault();
     browser.closeFinal();

@@ -25,7 +25,14 @@
     <div class="row final-render-options">
       <button id="final-render" class="primary" type="button" disabled>Render destination album</button>
       <button id="final-render-all" type="button" disabled>Render all destination albums</button>
-      <label><input id="final-overwrite" type="checkbox" checked> Overwrite previous renders</label>
+      <div class="row">
+        <label><input id="final-overwrite" type="checkbox" checked> Overwrite previous renders</label>
+        <button class="help-toggle" type="button" popovertarget="overwrite-help" aria-label="Help with overwriting renders">?</button>
+        <div class="help-panel" id="overwrite-help" popover>
+          <p>Replace the ZIP at the destination’s usual filename. Clear this option to save a timestamped ZIP and keep earlier renders.</p>
+          <a href="user-guide/#render-destination-albums" target="_blank" rel="noopener">Read about rendering options</a>
+        </div>
+      </div>
     </div>
     <div class="row final-toolbar">
       <label for="final-destination">Destination</label>

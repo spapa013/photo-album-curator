@@ -48,9 +48,15 @@ class PageAssets(HTMLParser):
     def __init__(self):
         super().__init__()
         self.urls = []
+        self.ids = set()
+        self.guide_sections = []
 
     def handle_starttag(self, tag, attributes):
         attributes = dict(attributes)
+        if "id" in attributes:
+            self.ids.add(attributes["id"])
+        if tag == "a" and attributes.get("href", "").startswith("user-guide/#"):
+            self.guide_sections.append(urlsplit(attributes["href"]).fragment)
         if tag == "script" and "src" in attributes:
             self.urls.append(attributes["src"])
         if tag == "link" and attributes.get("rel") == "stylesheet":
@@ -76,6 +82,7 @@ class PlatformSmokeTest(unittest.TestCase):
                     with urlopen(base + path, timeout=10) as response:
                         return response.read()
 
+                guide_sections = []
                 for filename, route, label in [
                     ("index.html", "", b"Set Workspace"),
                     ("final.html", "final.html", b"Render all destination albums"),
@@ -86,6 +93,7 @@ class PlatformSmokeTest(unittest.TestCase):
                     self.assertEqual(page, (app / "dist" / filename).read_bytes())
                     assets = PageAssets()
                     assets.feed(page.decode())
+                    guide_sections.extend(assets.guide_sections)
                     self.assertIn("browser.js", [urlsplit(url).path for url in assets.urls])
                     for url in assets.urls:
                         parts = urlsplit(url)
@@ -99,6 +107,10 @@ class PlatformSmokeTest(unittest.TestCase):
                 self.assertEqual(get("user-guide/user-guide.md"), (app / "docs" / "user-guide.md").read_bytes())
                 assets = PageAssets()
                 assets.feed(guide.decode())
+                self.assertCountEqual(guide_sections, [
+                    "back-up-and-restore", "back-up-and-restore", "add-sources", "render-destination-albums",
+                ])
+                self.assertTrue(set(guide_sections) <= assets.ids)
                 for url in assets.urls:
                     self.assertTrue(get(urljoin("user-guide/", url)))
 

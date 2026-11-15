@@ -31,8 +31,22 @@
         </label>
       </div>
       <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source</button>
-      <button id="browser-import" type="button">Import state</button>
-      <button id="browser-backup" type="button">Save backup</button>
+      <div class="row">
+        <button id="browser-import" type="button">Import state</button>
+        <button class="help-toggle" type="button" popovertarget="import-help" aria-label="Help with importing state">?</button>
+        <div class="help-panel" id="import-help" popover>
+          <p>Restore a project file or backup. Confirming the import replaces the current workspace state.</p>
+          <a href="user-guide/#back-up-and-restore" target="_blank" rel="noopener">Read about restoring state</a>
+        </div>
+      </div>
+      <div class="row">
+        <button id="browser-backup" type="button">Save backup</button>
+        <button class="help-toggle" type="button" popovertarget="backup-help" aria-label="Help with saving a backup">?</button>
+        <div class="help-panel" id="backup-help" popover>
+          <p>Save a snapshot of your workspace state in the <code>backups/</code> folder.</p>
+          <a href="user-guide/#back-up-and-restore" target="_blank" rel="noopener">Read about backups</a>
+        </div>
+      </div>
       <input id="browser-import-input" type="file" accept=".json" hidden>
       <p id="browser-project-status" class="hint" role="status"></p>
       <div id="browser-album-controls" class="row" hidden>
@@ -50,11 +64,18 @@
         <button id="browser-zip" type="button">Choose ZIP</button>
         <button id="browser-cancel-source" type="button">Cancel</button>
       </div>
-      <label class="row source-depth">
-        Album folder depth
-        <input id="browser-album-depth" type="number" min="0" max="9007199254740991" step="1" value="1"
-               aria-describedby="browser-album-depth-hint" required>
-      </label>
+      <div class="row source-depth">
+        <label class="row">
+          Album folder depth
+          <input id="browser-album-depth" type="number" min="0" max="9007199254740991" step="1" value="1"
+                 aria-describedby="browser-album-depth-hint" required>
+        </label>
+        <button class="help-toggle" type="button" popovertarget="depth-help" aria-label="Help with album folder depth">?</button>
+        <div class="help-panel" id="depth-help" popover>
+          <p>Depth 0 keeps a source together. Depth 1 groups by top-level folder. Higher numbers group by deeper folders.</p>
+          <a href="user-guide/#add-sources" target="_blank" rel="noopener">Read about album folder depth</a>
+        </div>
+      </div>
       <p id="browser-album-depth-hint" class="hint">0 for one album. 1 for top-level folders.</p>
     </dialog>
     <dialog id="browser-final" aria-label="Destination albums"><iframe title="Destination albums"></iframe></dialog>
