@@ -597,6 +597,19 @@
 
   const fileTimestamp = () => new Date().toISOString().replaceAll(":", "-").replace(".", "-");
 
+  function archiveStems(guests) {
+    const claimed = new Set();
+    // Keep literal destination names from taking a disambiguated or timestamped filename.
+    const generatedEnding = /(?: \[\d+\]| - \d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{3}Z(?: \(\d+\))?)$/i;
+    return new Map(guests.slice().sort((a, b) => a.id - b.id).map(({id, name}) => {
+      const stem = archiveStem(name);
+      const key = folded(stem);
+      const needsId = claimed.has(key) || generatedEnding.test(stem);
+      claimed.add(key);
+      return [id, needsId ? `${stem} [${id}]` : stem];
+    }));
+  }
+
   async function openArchive(directory, stem, overwrite) {
     const existing = new Set();
     if (!overwrite) {
@@ -617,10 +630,9 @@
   }
 
   async function writeArchive(directory, job, photoSources, timestamp, progress) {
-    const {plan, photos} = job;
+    const {plan, photos, stem} = job;
     if (photos.some(({available}) => !available)) throw new Error("Reopen all source albums used by this destination.");
 
-    const stem = `${archiveStem(plan.name)} [${plan.guest}]`;
     const {file, created} = await openArchive(directory, timestamp ? `${stem} - ${timestamp}` : stem, !timestamp);
     const width = Math.max(4, String(photos.length).length);
     let writable;
@@ -664,8 +676,10 @@
       if (destination && plans[0].token !== destination.token) {
         throw new Error("Album choices changed. Reload this destination album.");
       }
-      const jobs = plans.map((plan) => ({plan, photos: plan.photos.filter(({included}) => included)}))
-        .filter(({photos}) => photos.length);
+      const stems = archiveStems(snapshot.guests);
+      const jobs = plans.map((plan) => ({
+        plan, photos: plan.photos.filter(({included}) => included), stem: stems.get(plan.guest),
+      })).filter(({photos}) => photos.length);
       if (destination && !jobs.length) throw new Error("Include at least one photo.");
       const result = {rendered: [], skipped: plans.length - jobs.length, failures: []};
       if (!jobs.length) return result;

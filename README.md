@@ -46,7 +46,7 @@ Use **Included**, **Positioned**, or **Excluded** to filter the photo list. Sele
 
 Use **Render destination album** or **Render all destination albums** to save ZIPs in `destinations/` inside the workspace. Each ZIP contains the included originals with sortable prefixes such as `0001 - `. Batch rendering skips destinations without included photos.
 
-**Overwrite previous renders** is checked by default. A confirmed render replaces the ZIP at the destination’s stable filename, such as `Sam [1].zip`. Clear the checkbox to add a timestamp and keep existing ZIPs. The destination ID keeps filenames distinct when names sanitize to the same text.
+**Overwrite previous renders** is checked by default. A confirmed render replaces the ZIP at the destination’s stable filename, such as `Sam.zip`. The app adds a destination ID only when it needs to distinguish filenames. Clear the checkbox to add a timestamp and keep existing ZIPs.
 
 ## Back up and restore
 
