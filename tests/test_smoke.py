@@ -70,6 +70,7 @@ class PlatformSmokeTest(unittest.TestCase):
                 members = archive.infolist()
                 self.assertFalse(any("sqlite" in member.filename or "Albums/" in member.filename for member in members))
                 self.assertFalse(any(" " in member.filename for member in members))
+                self.assertEqual(archive.read("PhotoAlbumCurator/LICENSE"), (ROOT / "LICENSE").read_bytes())
                 archive.extractall(temp)
                 if os.name != "nt":
                     for member in members:

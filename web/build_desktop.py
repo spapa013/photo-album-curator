@@ -17,7 +17,7 @@ def main():
         subprocess.run([sys.executable, str(ROOT / "web" / "build.py"), "--output", str(site)], check=True)
         with ZipFile(PACKAGE, "w", compression=ZIP_DEFLATED) as archive:
             for name in ("launch.py", "StartPhotoAlbumCurator.bat", "StartPhotoAlbumCurator.command", "README.md",
-                         "docs/user-guide.md"):
+                         "LICENSE", "docs/user-guide.md"):
                 source = ROOT / name
                 entry = ZipInfo.from_file(source, f"PhotoAlbumCurator/{name}")
                 if source.suffix == ".command":
