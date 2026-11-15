@@ -45,7 +45,7 @@ The assignment screen’s progress count shows how many photos in the source alb
 
 ## Curate destinations
 
-1. Click **Curate destinations** and choose a destination. Directly assigned photos start included. Photos available only through **All destinations** are eligible for that album and can be included individually.
+1. Click **Curate Destination Albums** below **Add a destination**, then choose a destination. Directly assigned photos start included. Photos available only through **All destinations** are eligible for that album and can be included individually.
 2. Use **All**, **Included**, **Positioned**, or **Excluded**, or search by filename or source album. Select a photo in the list to preview it. The inclusion count covers the entire destination, even when the visible list is filtered.
 3. Use **Include** below the preview to choose whether the photo goes into the ZIP. Included photos show an **Included** badge in the list.
 4. Check **Position** to give an included photo the next position. Its number appears to the left of the **Included** badge. Drag positioned rows to reorder them, or enter a number next to **Position** and click **Move**. Uncheck **Position** to return a photo to capture order. Excluding an image also clears its position.
