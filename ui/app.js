@@ -86,6 +86,7 @@ function updateControls() {
   byId("destination-name").disabled = busy || saving || !hasPhoto;
   byId("add-destination").disabled = busy || saving || !hasPhoto;
   for (const button of destinations.querySelectorAll(".destination-edit")) button.disabled = busy;
+  for (const button of destinations.querySelectorAll(".destination-delete")) button.disabled = blocked;
   renameInput.readOnly = busy;
   renameSave.disabled = blocked;
   renameCancel.disabled = busy;
@@ -189,7 +190,15 @@ function renderDestinations() {
       renameInput.focus();
       renameInput.select();
     });
-    row.append(edit);
+    const remove = document.createElement("button");
+    remove.className = "destination-delete";
+    remove.type = "button";
+    remove.textContent = "🗑︎";
+    remove.title = "Delete " + name;
+    remove.setAttribute("aria-label", remove.title);
+    remove.disabled = busy || saving || pending.length > 0;
+    remove.addEventListener("click", () => deleteDestination(id, name));
+    row.append(edit, remove);
     return editingDestinationId === id ? [row, renameForm] : [row];
   }));
 }
@@ -215,6 +224,24 @@ renameForm.addEventListener("submit", (event) => {
     feedback.textContent = `Renamed to ${renamed.name}.`;
   }, renameError);
 });
+
+async function deleteDestination(id, name) {
+  if (busy || saving || pending.length) return;
+  if (!window.confirm(
+    `Delete the destination album “${name}”?\n\n` +
+    "This deletes only workspace records for this destination, including its photo assignments across all source albums, inclusion choices, and saved photo order."
+  )) return;
+
+  let removed = false;
+  await perform(async () => {
+    const {deleted, source} = await request("/api/destination/delete", {destinationId: id, name, album});
+    if (editingDestinationId === id) editingDestinationId = null;
+    showAlbum(album, source);
+    feedback.textContent = `Deleted ${deleted.name}.`;
+    removed = true;
+  });
+  if (removed) destinations.querySelector('input[type="checkbox"]')?.focus({preventScroll: true});
+}
 
 function countAssignments(assignment) {
   return assignment ? assignment.destinationIds.length + Number(assignment.allDestinations) : 0;
@@ -257,6 +284,11 @@ function showPhoto(position) {
 
 async function openAlbum(key) {
   const result = await request("/api/open", {album: key});
+  destinationName.value = "";
+  showAlbum(key, result);
+}
+
+function showAlbum(key, result) {
   state = result;
   album = key;
   pending.length = 0;
@@ -264,7 +296,6 @@ async function openAlbum(key) {
   feedback.textContent = "";
   preference("selectedSourceAlbum", key);
   albumSelect.value = key;
-  destinationName.value = "";
   browser.preview(image, byId("preview-error"), album, null);
   jump.replaceChildren(...state.photos.map((photo, position) =>
     new Option(`${position + 1}. ${photo.path}`, photo.path)));

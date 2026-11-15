@@ -634,7 +634,10 @@
       let added;
       await project((state) => {
         const name = destinationName(state, data.name);
-        added = {name, id: Math.max(0, ...state.destinations.map(({id}) => id)) + 1};
+        const id = Math.max(state.lastDestinationId ?? 0, ...state.destinations.map(({id}) => id)) + 1;
+        if (!Number.isSafeInteger(id)) throw new Error("No destination IDs are available.");
+        added = {name, id};
+        state.lastDestinationId = id;
         state.destinations.push(added);
       });
       return {added};
@@ -646,6 +649,33 @@
         destination.name = destinationName(state, data.name, destination.id);
       });
       return state.destinations.find(({id}) => id === data.destinationId);
+    }
+    if (path === "/api/destination/delete") {
+      const {destinationId, name, album: sourceKey} = data;
+      let deleted;
+      const state = await project((state) => {
+        if (!state.sourceAlbums.some(({key}) => key === sourceKey)) {
+          throw new Error("This source album changed. Reload albums to continue.");
+        }
+        deleted = state.destinations.find(({id}) => id === destinationId);
+        if (!deleted || deleted.name !== name) throw new Error("This destination changed. Reload albums to continue.");
+        state.destinations = state.destinations.filter(({id}) => id !== destinationId);
+        state.lastDestinationId = Math.max(state.lastDestinationId ?? 0, destinationId);
+        state.destinationChoices = state.destinationChoices.filter((item) => item.destinationId !== destinationId);
+        for (const album of state.sourceAlbums) {
+          let changed = false;
+          for (const assignment of album.assignments) {
+            if (!assignment.destinationIds.includes(destinationId)) continue;
+            assignment.destinationIds = assignment.destinationIds.filter((id) => id !== destinationId);
+            changed = true;
+          }
+          if (changed) album.revision++;
+        }
+        if (state.workspace.preferences.selectedDestinationId === String(destinationId)) {
+          delete state.workspace.preferences.selectedDestinationId;
+        }
+      });
+      return {deleted, source: albumState(state, sourceKey)};
     }
     if (path !== "/api/assignment") throw new Error("Unknown album action.");
     const state = await project((state) => {
@@ -814,6 +844,8 @@
 
   function validProject(state) {
     if (state?.format !== projectFormat || state.version !== projectVersion || !validWorkspace(state.workspace) ||
+        (state.lastDestinationId !== undefined &&
+          (!Number.isSafeInteger(state.lastDestinationId) || state.lastDestinationId < 0)) ||
         !Array.isArray(state.destinations) || !state.destinations.every((destination) =>
           destination && Number.isSafeInteger(destination.id) && destination.id > 0 &&
           typeof destination.name === "string" && destination.name.length > 0)) return false;

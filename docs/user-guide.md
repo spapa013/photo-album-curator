@@ -43,6 +43,8 @@ The app supports JPEG (including JFIF), PNG, WebP, GIF, BMP, and AVIF. It reads 
 
 To rename a destination, click the pencil beside its name, edit the name, and choose **Save**. Its assignments, inclusion choices, and photo order carry over to the new name. Future renders use the new name for the ZIP.
 
+To delete a destination, click the trash button beside its name and confirm. This removes the destination, its assignments across all source albums, and its inclusion and ordering choices from the workspace.
+
 The assignment screen’s progress count shows how many photos in the source album have at least one selection.
 
 ## Curate destinations
