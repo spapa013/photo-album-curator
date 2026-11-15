@@ -46,7 +46,7 @@ Open **Curate destinations** and pick a destination. Photos assigned directly to
 
 Use **All**, **Included**, **Positioned**, or **Excluded** to filter the list. Use **Include** below the preview to decide whether the selected photo goes into the ZIP. Check **Position** to place an included photo at the end of the positioned group. Drag positioned rows to reorder them, or enter a position below the preview and click **Move**. Uncheck **Position** or **Include** to clear the position.
 
-Use **←** and **→** to browse the visible photos in their displayed order, **I** to toggle inclusion, and **P** to toggle position.
+Use **←** and **→** to browse the visible photos in their displayed order, **I** to toggle inclusion, **P** to toggle position, and **Esc** to return to assignments.
 
 Positioned photos come first, then unpositioned included photos in capture order, then excluded photos. Photos without capture timestamps follow in filename order within their group.
 

@@ -237,10 +237,17 @@ byId("final-reload").addEventListener("click", () => {
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
 document.addEventListener("keydown", (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || draggedRow) return;
+  if (event.key === "Escape") {
+    event.preventDefault();
+    browser.closeFinal();
+    return;
+  }
+
   const pressed = event.key.toLowerCase();
   const toggle = pressed === "i" ? includeCheckbox : pressed === "p" ? positionCheckbox : null;
   if (!toggle && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
-  if (busy || draggedRow || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  if (busy) return;
   const focused = event.target;
   if (focused instanceof HTMLElement &&
       (focused.isContentEditable || focused.matches('input:not([type="checkbox"]), select, textarea'))) return;
