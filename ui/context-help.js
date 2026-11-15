@@ -1,9 +1,15 @@
 "use strict";
 
-for (const group of document.querySelectorAll("[data-help]")) {
-  const control = group.querySelector("button, input");
+const contextHelpDismissers = new WeakMap();
+
+function openContextHelp() {
+  return HTMLElement.prototype.hidePopover && document.querySelector(".help-panel:popover-open");
+}
+
+function bindContextHelp(group) {
+  const control = group.querySelector("button, input, a");
   const panel = group.querySelector(".help-panel");
-  if (!panel.showPopover) continue;
+  if (!panel.showPopover) return;
 
   let showTimer;
   let hideTimer;
@@ -53,10 +59,14 @@ for (const group of document.querySelectorAll("[data-help]")) {
   group.addEventListener("click", (event) => {
     if (!panel.contains(event.target)) dismiss();
   }, true);
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && isOpen()) {
-      event.preventDefault();
-      dismiss();
-    }
-  }, true);
+  contextHelpDismissers.set(panel, dismiss);
 }
+
+document.querySelectorAll("[data-help]").forEach(bindContextHelp);
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "Escape") return;
+  const dismiss = contextHelpDismissers.get(openContextHelp());
+  if (!dismiss) return;
+  event.preventDefault();
+  dismiss();
+}, true);

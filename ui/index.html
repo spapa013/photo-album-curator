@@ -18,7 +18,13 @@
         </p>
       </div>
       <div class="row header-actions">
-        <a id="final-link" class="button-link" href="final.html" hidden>Curate destinations</a>
+        <div class="row" data-help>
+          <a id="final-link" class="button-link" href="final.html" hidden>Curate destinations</a>
+          <div class="help-panel" popover>
+            <p>Choose which photos to include, arrange them, and render ZIPs for your destinations.</p>
+            <a href="user-guide/#curate-destinations" target="_blank" rel="noopener">Read about curating destinations</a>
+          </div>
+        </div>
         <a class="button-link" href="user-guide/" target="_blank" rel="noopener">User guide</a>
       </div>
     </header>
@@ -40,7 +46,13 @@
           </div>
         </div>
       </div>
-      <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source</button>
+      <div class="row" data-help>
+        <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source</button>
+        <div class="help-panel" popover>
+          <p>Choose a photo folder or ZIP and set how its subfolders are grouped into albums.</p>
+          <a href="user-guide/#add-sources" target="_blank" rel="noopener">Read about adding sources</a>
+        </div>
+      </div>
       <div class="row" data-help>
         <button id="browser-import" type="button">Import state</button>
         <div class="help-panel" id="import-help" popover>
@@ -60,8 +72,20 @@
       <div id="browser-album-controls" class="row" hidden>
         <label for="album">Source album</label>
         <select id="album" disabled></select>
-        <button id="reload" type="button">Reload albums</button>
-        <button id="browser-relink" type="button" disabled>Relink Source</button>
+        <div class="row" data-help>
+          <button id="reload" type="button">Reload albums</button>
+          <div class="help-panel" popover>
+            <p>Refresh the album list from the workspace file. To scan for new photos, reopen the workspace or reselect the source.</p>
+            <a href="user-guide/#reopen-or-relink-sources" target="_blank" rel="noopener">Read about refreshing sources</a>
+          </div>
+        </div>
+        <div class="row" data-help>
+          <button id="browser-relink" type="button" disabled>Relink Source</button>
+          <div class="help-panel" popover>
+            <p>Choose a source folder or ZIP at its new location. Photos with matching paths keep their assignments and positions.</p>
+            <a href="user-guide/#reopen-or-relink-sources" target="_blank" rel="noopener">Read about relinking sources</a>
+          </div>
+        </div>
       </div>
       <ul id="browser-source-list" hidden></ul>
     </section>

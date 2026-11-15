@@ -23,8 +23,20 @@
     <p id="final-error" class="notice error" role="alert" hidden></p>
     <p id="no-destinations" class="notice" hidden>Add a destination on the assignment screen to start a destination album.</p>
     <div class="row final-render-options">
-      <button id="final-render" class="primary" type="button" disabled>Render destination album</button>
-      <button id="final-render-all" type="button" disabled>Render all destination albums</button>
+      <div class="row" data-help>
+        <button id="final-render" class="primary" type="button" disabled>Render destination album</button>
+        <div class="help-panel" popover>
+          <p>Save a ZIP of the selected destination’s included photos in the workspace’s <code>destinations/</code> folder.</p>
+          <a href="user-guide/#render-destination-albums" target="_blank" rel="noopener">Read about rendering an album</a>
+        </div>
+      </div>
+      <div class="row" data-help>
+        <button id="final-render-all" type="button" disabled>Render all destination albums</button>
+        <div class="help-panel" popover>
+          <p>Save a ZIP for each destination that has included photos.</p>
+          <a href="user-guide/#render-destination-albums" target="_blank" rel="noopener">Read about rendering all albums</a>
+        </div>
+      </div>
       <div class="row" data-help>
         <label><input id="final-overwrite" type="checkbox" checked> Overwrite previous renders</label>
         <div class="help-panel" id="overwrite-help" popover>
@@ -36,7 +48,13 @@
     <div class="row final-toolbar">
       <label for="final-destination">Destination</label>
       <select id="final-destination" disabled></select>
-      <button id="final-reload" type="button" disabled>Reload</button>
+      <div class="row" data-help>
+        <button id="final-reload" type="button" disabled>Reload</button>
+        <div class="help-panel" popover>
+          <p>Refresh the selected destination’s photo list, inclusion choices, and order from the workspace file.</p>
+          <a href="user-guide/#curate-destinations" target="_blank" rel="noopener">Read about curating destinations</a>
+        </div>
+      </div>
     </div>
     <p id="final-feedback" class="hint" role="status"></p>
     <p id="final-count" class="hint"></p>

@@ -52,6 +52,8 @@ The assignment screen’s progress count shows how many photos in the source alb
 
 Positioned photos appear first, followed by unpositioned included photos in capture order and then excluded photos. Each destination saves its own inclusion and order choices across source albums.
 
+Use **Reload** to refresh the selected destination from the workspace file.
+
 | Key | Action |
 | --- | --- |
 | **←** / **→** | Browse the visible photos in their current order |

@@ -287,7 +287,8 @@ function relinkSource(id) {
   });
 }
 
-byId("browser-relink").addEventListener("click", () => relinkSource(browser.sourceForAlbum(album)));
+const relinkButton = byId("browser-relink");
+relinkButton.addEventListener("click", () => relinkSource(browser.sourceForAlbum(album)));
 function showDiskStatus() {
   const disk = browser.diskStatus();
   byId("final-link").hidden = !disk;
@@ -312,12 +313,13 @@ function showDiskStatus() {
       }));
       row.append(button);
     }
-    const relink = document.createElement("button");
-    relink.type = "button";
-    relink.textContent = "Relink Source";
+    const relinkControl = relinkButton.parentElement.cloneNode(true);
+    const relink = relinkControl.querySelector("button");
+    relink.removeAttribute("id");
     relink.setAttribute("aria-label", "Relink source " + source.name);
     relink.addEventListener("click", () => relinkSource(source.id));
-    row.append(relink);
+    row.append(relinkControl);
+    bindContextHelp(relinkControl);
     return row;
   }));
 }

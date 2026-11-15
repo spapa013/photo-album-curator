@@ -110,6 +110,8 @@ class PlatformSmokeTest(unittest.TestCase):
                 self.assertCountEqual(guide_sections, [
                     "back-up-and-restore", "back-up-and-restore", "add-sources", "render-destination-albums",
                     "set-up-a-workspace", "reopen-or-relink-sources",
+                    "add-sources", "reopen-or-relink-sources", "reopen-or-relink-sources", "curate-destinations",
+                    "render-destination-albums", "render-destination-albums", "curate-destinations",
                 ])
                 self.assertTrue(set(guide_sections) <= assets.ids)
                 for url in assets.urls:
