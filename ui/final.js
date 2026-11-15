@@ -142,7 +142,7 @@ function render() {
     const positioned = document.createElement("input");
     positioned.type = "checkbox";
     positioned.checked = photo.rank !== null;
-    positioned.setAttribute("aria-label", `Set position for ${description}`);
+    positioned.setAttribute("aria-label", `Position ${description}`);
     positioned.addEventListener("change", () => {
       if (!positioned.checked) {
         edit(photo, "unrank");
@@ -152,7 +152,7 @@ function render() {
       edit(photo, "rank", {position});
     });
     const label = document.createElement("span");
-    label.textContent = "Set position";
+    label.textContent = "Position";
     positionLabel.append(positioned, label);
     const status = document.createElement("span");
     status.className = "status";
