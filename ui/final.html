@@ -20,6 +20,7 @@
     <p id="final-error" class="notice error" role="alert" hidden></p>
     <p id="no-guests" class="notice" hidden>Add a destination on the assignment screen to start a destination album.</p>
     <div class="row final-render-options">
+      <button id="final-render" class="primary" type="button" disabled>Render destination album</button>
       <button id="final-render-all" type="button" disabled>Render all destination albums</button>
       <label><input id="final-overwrite" type="checkbox" checked> Overwrite previous renders</label>
     </div>
@@ -29,10 +30,7 @@
         <select id="final-guest" disabled></select>
         <button id="final-reload" type="button" disabled>Reload</button>
       </div>
-      <div class="row">
-        <span id="final-count"></span>
-        <button id="final-render" class="primary" type="button" disabled>Render destination album</button>
-      </div>
+      <span id="final-count"></span>
     </div>
     <p id="final-feedback" class="hint" role="status"></p>
 
@@ -41,6 +39,7 @@
         <div class="final-filters">
           <input id="final-search" type="search" aria-label="Find a photo" placeholder="Find a photo or source album">
           <select id="final-filter" aria-label="Filter photos">
+            <option value="all">All</option>
             <option value="included">Included</option>
             <option value="positioned">Positioned</option>
             <option value="excluded">Excluded</option>

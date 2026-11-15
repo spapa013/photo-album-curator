@@ -654,7 +654,6 @@
         }
       }
       await writer.close();
-      return {count: photos.length, path: `destinations/${file.name}`};
     } catch (error) {
       await writable?.abort().catch(() => {});
       if (created) await directory.removeEntry(file.name).catch(() => {});
@@ -681,20 +680,20 @@
         plan, photos: plan.photos.filter(({included}) => included), stem: stems.get(plan.guest),
       })).filter(({photos}) => photos.length);
       if (destination && !jobs.length) throw new Error("Include at least one photo.");
-      const result = {rendered: [], skipped: plans.length - jobs.length, failures: []};
-      if (!jobs.length) return result;
+      const failures = [];
+      if (!jobs.length) return failures;
 
       const directory = await workspace.folder.getDirectoryHandle("destinations", {create: true});
       const timestamp = overwrite ? "" : fileTimestamp();
       for (const job of jobs) {
         try {
-          result.rendered.push(await writeArchive(directory, job, photoSources, timestamp, progress));
+          await writeArchive(directory, job, photoSources, timestamp, progress);
         } catch (error) {
           if (destination) throw error;
-          result.failures.push(`${job.plan.name} — ${error.message}`);
+          failures.push(`${job.plan.name} — ${error.message}`);
         }
       }
-      return result;
+      return failures;
     });
   }
 

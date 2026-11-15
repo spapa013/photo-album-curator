@@ -101,7 +101,8 @@ function render() {
   byId("final-count").textContent = `${included} of ${plan.photos.length} included`;
   const term = search.value.trim().toLowerCase();
   const visible = plan.photos.filter((photo) => {
-    const matchesFilter = (filter.value === "included" && photo.included) ||
+    const matchesFilter = filter.value === "all" ||
+      (filter.value === "included" && photo.included) ||
       (filter.value === "positioned" && photo.rank !== null) ||
       (filter.value === "excluded" && !photo.included);
     return matchesFilter && `${photo.album} ${photo.path}`.toLowerCase().includes(term);
@@ -176,16 +177,10 @@ function confirmRender(destination) {
   if (!window.confirm(`${question}\n\n${behavior}`)) return;
 
   perform(async () => {
-    const {rendered, skipped, failures} = await browser.renderAlbums(destination, overwrite, (message) => {
+    const failures = await browser.renderAlbums(destination, overwrite, (message) => {
       feedback.textContent = message;
     });
-    if (destination) {
-      const [result] = rendered;
-      feedback.textContent = `Saved ${result.count} photos to ${result.path}`;
-      return;
-    }
-    const summary = `Saved ${rendered.length} destination album ZIPs to destinations/.`;
-    feedback.textContent = skipped ? `${summary} Skipped ${skipped} with no included photos.` : summary;
+    feedback.textContent = "";
     if (failures.length) {
       errorBox.textContent = failures.join("\n");
       errorBox.hidden = false;
