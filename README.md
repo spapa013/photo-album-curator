@@ -2,7 +2,9 @@
 
 Create personalized albums from a shared photo collection.
 
-The app runs in your browser on Windows and macOS. Your photos, assignments, and rendered albums stay on your device.
+No photos are uploaded. All photos stay on your device
+
+The app runs in your browser on Windows and macOS.
 
 ## Open the app
 
