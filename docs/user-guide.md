@@ -41,6 +41,8 @@ The app supports JPEG (including JFIF), PNG, WebP, GIF, BMP, and AVIF. It reads 
 2. Use **Add a destination** to name a destination album. Destinations are available across all source albums.
 3. Check each destination that should get the current photo. Use **All destinations** to make the photo available to every destination. Each photo can have multiple assignments, and changes save automatically.
 
+To rename a destination, click the pencil beside its name, edit the name, and choose **Save**. Its assignments, inclusion choices, and photo order carry over to the new name. Future renders use the new name for the ZIP.
+
 The assignment screen’s progress count shows how many photos in the source album have at least one selection.
 
 ## Curate destinations

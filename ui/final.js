@@ -248,6 +248,7 @@ list.addEventListener("drop", (event) => {
 async function openDestination(destinationId) {
   plan = await request("open", {destinationId});
   destinationSelect.value = destinationId;
+  destinationSelect.selectedOptions[0].textContent = plan.name;
   await browser.preference("selectedDestinationId", destinationId);
   feedback.textContent = "";
   render();

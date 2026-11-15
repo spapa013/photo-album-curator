@@ -146,6 +146,16 @@
           </div>
           <p class="hint">Choose any destinations. Changes save automatically.</p>
           <fieldset id="destinations" aria-label="Destination albums"></fieldset>
+          <template id="destination-rename-template">
+            <form class="destination-rename row" aria-label="Rename destination">
+              <input name="name" aria-label="Destination name" maxlength="80" required>
+              <div class="row">
+                <button type="submit">Save</button>
+                <button type="button">Cancel</button>
+              </div>
+              <p class="notice error" role="alert" hidden></p>
+            </form>
+          </template>
           <form id="destination-form" class="destination-form">
             <label for="destination-name">Add a destination</label>
             <div class="row">

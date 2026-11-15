@@ -565,7 +565,7 @@
     }
     photos.sort((a, b) => Number(b.included) - Number(a.included) ||
       (a.rank ?? Infinity) - (b.rank ?? Infinity) || comparePhotos(a, b));
-    const token = JSON.stringify(photos);
+    const token = JSON.stringify([destination.name, photos]);
     let rank = 0;
     for (const photo of photos) if (photo.rank !== null) photo.rank = ++rank;
     return {destinationId, name: destination.name, photos, token};
@@ -609,6 +609,16 @@
     state.destinationChoices = state.destinationChoices.filter((item) => item.included !== null || item.position !== null);
   }
 
+  function destinationName(state, value, destinationId) {
+    const name = typeof value === "string" ? value.trim().normalize("NFC") : "";
+    if (!name || name.length > 80) throw new Error("Enter a destination name.");
+    if (state.destinations.some((destination) =>
+      destination.id !== destinationId && folded(destination.name) === folded(name))) {
+      throw new Error("A destination with that name already exists.");
+    }
+    return name;
+  }
+
   async function request(path, data) {
     if (path === "/api/preference") return preference(data.key, data.value);
     if (path === "/api/albums") {
@@ -621,17 +631,21 @@
     if (path === "/api/final/open") return finalPlan(await project(), data.destinationId);
     if (path === "/api/final/edit") return finalPlan(await project((state) => editFinal(state, data)), data.destinationId);
     if (path === "/api/destination") {
-      const name = data.name.trim().normalize("NFC");
-      if (!name || name.length > 80) throw new Error("Enter a destination name.");
       let added;
       await project((state) => {
-        if (state.destinations.some((destination) => folded(destination.name) === folded(name))) {
-          throw new Error("A destination with that name already exists.");
-        }
+        const name = destinationName(state, data.name);
         added = {name, id: Math.max(0, ...state.destinations.map(({id}) => id)) + 1};
         state.destinations.push(added);
       });
       return {added};
+    }
+    if (path === "/api/destination/rename") {
+      const state = await project((state) => {
+        const destination = state.destinations.find(({id}) => id === data.destinationId);
+        if (!destination) throw new Error("Choose a destination.");
+        destination.name = destinationName(state, data.name, destination.id);
+      });
+      return state.destinations.find(({id}) => id === data.destinationId);
     }
     if (path !== "/api/assignment") throw new Error("Unknown album action.");
     const state = await project((state) => {

@@ -6,6 +6,11 @@ const jump = byId("jump");
 const destinations = byId("destinations");
 const image = byId("image");
 const destinationName = byId("destination-name");
+const renameForm = byId("destination-rename-template").content.firstElementChild.cloneNode(true);
+const renameInput = renameForm.elements.namedItem("name");
+const renameSave = renameForm.querySelector('button[type="submit"]');
+const renameCancel = renameForm.querySelector('button[type="button"]');
+const renameError = renameForm.querySelector('[role="alert"]');
 const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
@@ -15,6 +20,7 @@ let index = 0;
 let busy = false;
 let saving = false;
 let saveFailed = false;
+let editingDestinationId = null;
 const pending = [];
 const viewingPreferences = new Map();
 let viewingTimer = null;
@@ -79,20 +85,25 @@ function updateControls() {
   }
   byId("destination-name").disabled = busy || saving || !hasPhoto;
   byId("add-destination").disabled = busy || saving || !hasPhoto;
+  for (const button of destinations.querySelectorAll(".destination-edit")) button.disabled = busy;
+  renameInput.readOnly = busy;
+  renameSave.disabled = blocked;
+  renameCancel.disabled = busy;
   byId("retry-save").hidden = !saveFailed;
   byId("retry-save").disabled = busy || saving;
 }
 
-async function perform(action) {
+async function perform(action, actionError = errorBox) {
   if (busy) return;
   busy = true;
   errorBox.hidden = true;
+  actionError.hidden = true;
   updateControls();
   try {
     await action();
   } catch (error) {
-    errorBox.textContent = error.message;
-    errorBox.hidden = false;
+    actionError.textContent = error.message;
+    actionError.hidden = false;
   } finally {
     busy = false;
     byId("loading").hidden = true;
@@ -140,8 +151,10 @@ function renderDestinations() {
   const selected = new Set(current?.destinationIds);
   if (current?.allDestinations) selected.add(null);
   const choices = [{id: null, name: "All destinations"}, ...state.destinations];
-  destinations.replaceChildren(...choices.map(({id, name}) => {
-    const row = document.createElement("label");
+  destinations.replaceChildren(...choices.flatMap(({id, name}) => {
+    const row = document.createElement("div");
+    row.className = "destination-row row";
+    const label = document.createElement("label");
     const checkbox = document.createElement("input");
     checkbox.type = "checkbox";
     checkbox.checked = selected.has(id);
@@ -155,10 +168,53 @@ function renderDestinations() {
       pending.push(assignment);
       if (!saveFailed) savePending();
     });
-    row.append(checkbox, name);
-    return row;
+    label.append(checkbox, name);
+    row.append(label);
+    if (id === null) return [row];
+
+    const edit = document.createElement("button");
+    edit.className = "destination-edit";
+    edit.type = "button";
+    edit.textContent = "✎";
+    edit.dataset.destinationId = id;
+    edit.title = "Rename " + name;
+    edit.setAttribute("aria-label", edit.title);
+    edit.addEventListener("click", () => {
+      if (editingDestinationId !== id) {
+        editingDestinationId = id;
+        renameInput.value = name;
+        renameError.hidden = true;
+        renderDestinations();
+      }
+      renameInput.focus();
+      renameInput.select();
+    });
+    row.append(edit);
+    return editingDestinationId === id ? [row, renameForm] : [row];
   }));
 }
+
+function closeDestinationEditor() {
+  const id = editingDestinationId;
+  editingDestinationId = null;
+  renderDestinations();
+  destinations.querySelector(`[data-destination-id="${id}"]`)?.focus();
+}
+
+renameCancel.addEventListener("click", closeDestinationEditor);
+renameInput.addEventListener("input", () => { renameError.hidden = true; });
+renameForm.addEventListener("submit", (event) => {
+  event.preventDefault();
+  if (busy || saving || pending.length) return;
+  perform(async () => {
+    const destination = state.destinations.find(({id}) => id === editingDestinationId);
+    const renamed = await request("/api/destination/rename", {destinationId: destination.id, name: renameInput.value});
+    destination.name = renamed.name;
+    state.destinations.sort((a, b) => a.name.localeCompare(b.name));
+    closeDestinationEditor();
+    feedback.textContent = `Renamed to ${renamed.name}.`;
+  }, renameError);
+});
 
 function countAssignments(assignment) {
   return assignment ? assignment.destinationIds.length + Number(assignment.allDestinations) : 0;
@@ -372,6 +428,7 @@ byId("browser-set-workspace").addEventListener("click", () => {
     const [viewingSave, opened] = await Promise.allSettled([saveViewingPreferences(), browser.setWorkspace(progress)]);
     if (opened.status === "fulfilled") {
       resetViewingPreferences();
+      editingDestinationId = null;
       album = null;
       state = null;
       showDiskStatus();
@@ -434,6 +491,7 @@ importInput.addEventListener("change", () => {
     try {
       await browser.importProject(file, progress);
       resetViewingPreferences();
+      editingDestinationId = null;
       album = null;
       await reloadAlbums();
     } finally {
