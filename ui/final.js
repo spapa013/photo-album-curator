@@ -141,14 +141,7 @@ function render() {
     const source = document.createElement("small");
     source.textContent = sourceLabel(photo);
     title.append(source);
-    const status = document.createElement("span");
-    status.className = "status";
-    const labels = [];
-    if (photo.rank !== null) labels.push(`#${photo.rank}`);
-    if (!photo.available) labels.push("Source missing");
-    status.textContent = labels.join(" · ");
-    status.hidden = !labels.length;
-    row.append(title, status);
+    row.append(title);
     if (photo.rank !== null) {
       const grip = document.createElement("span");
       grip.className = "final-grip";
@@ -156,6 +149,16 @@ function render() {
       grip.title = "Drag to reorder";
       grip.setAttribute("aria-hidden", "true");
       row.append(grip);
+    }
+    const labels = [];
+    if (!photo.available) labels.push("Source missing");
+    if (photo.rank !== null) labels.push(`#${photo.rank}`);
+    if (photo.included) labels.push("Included");
+    for (const label of labels) {
+      const badge = document.createElement("span");
+      badge.className = "status";
+      badge.textContent = label;
+      row.append(badge);
     }
     return row;
   }));
