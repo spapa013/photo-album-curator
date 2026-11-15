@@ -73,7 +73,6 @@ progress { flex: 1; accent-color: var(--accent); }
 .layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(290px, 1fr); gap: 1rem; }
 .card { border: 1px solid var(--border); border-radius: .7rem; background: white; min-width: 0; }
 .photo-card { overflow: hidden; }
-#preview, .final-preview { touch-action: pan-y pinch-zoom; }
 #preview {
   display: grid;
   grid-template: minmax(0, 1fr) / minmax(0, 1fr);

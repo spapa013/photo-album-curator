@@ -101,13 +101,6 @@ function choose(photo) {
   renderDetail();
 }
 
-function navigate(direction) {
-  const current = list.querySelector(".current");
-  const row = direction < 0 ? current?.previousElementSibling : current?.nextElementSibling;
-  if (row) choose(plan.photos.find((photo) => key(photo) === row.dataset.key));
-  return row;
-}
-
 function edit(photo, action, values = {}) {
   perform(async () => {
     plan = await request("edit", {
@@ -246,16 +239,6 @@ byId("final-reload").addEventListener("click", () => {
 });
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
-bindPreviewSwipe(document.querySelector(".final-preview"), (direction) => {
-  if (busy || draggedRow) return;
-  const row = navigate(direction);
-  if (!row) return;
-  // Reveal the selection inside the list without scrolling the preview away.
-  const bounds = list.getBoundingClientRect();
-  const selected = row.getBoundingClientRect();
-  if (selected.top < bounds.top) list.scrollTop += selected.top - bounds.top;
-  else if (selected.bottom > bounds.bottom) list.scrollTop += selected.bottom - bounds.bottom;
-});
 document.addEventListener("keydown", (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey || draggedRow) return;
   if (openContextHelp()) return;
@@ -280,10 +263,12 @@ document.addEventListener("keydown", (event) => {
     return;
   }
 
-  if (!currentPhoto()) return;
+  const current = list.querySelector(".current");
+  if (!current) return;
   event.preventDefault();
-  const row = navigate(event.key === "ArrowLeft" ? -1 : 1);
+  const row = event.key === "ArrowLeft" ? current.previousElementSibling : current.nextElementSibling;
   if (!row) return;
+  choose(plan.photos.find((photo) => key(photo) === row.dataset.key));
   if (list.contains(focused)) row.querySelector(".final-photo-link").focus({preventScroll: true});
   row.scrollIntoView({block: "nearest", inline: "nearest"});
 });

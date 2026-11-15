@@ -32,7 +32,7 @@ for url, integrity, files in PACKAGES:
             with archive.extractfile(f"package/{source}") as library:
                 (DIST / destination).write_bytes(library.read())
 
-for name in ("app.js", "final.js", "context-help.js", "preview-swipe.js", "style.css"):
+for name in ("app.js", "final.js", "context-help.js", "style.css"):
     shutil.copyfile(ROOT / "ui" / name, DIST / name)
 for name in ("browser.js", "browser.css"):
     shutil.copyfile(ROOT / "web" / name, DIST / name)
@@ -51,7 +51,7 @@ for name, script in (("final.html", "final.js"), ("index.html", "app.js")):
     scripts = ("zip.min.js",) if name == "index.html" else ()
     includes = "\n".join(
         f'<script src="{asset_url(asset)}" defer></script>'
-        for asset in (*scripts, "browser.js", "context-help.js", "preview-swipe.js", script)
+        for asset in (*scripts, "browser.js", "context-help.js", script)
     )
     page = page.replace(f'<script src="{script}" defer></script>',
                         f'{security}\n<link rel="stylesheet" href="{asset_url("browser.css")}">\n{includes}')
