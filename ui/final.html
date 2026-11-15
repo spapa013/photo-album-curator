@@ -24,15 +24,13 @@
       <button id="final-render-all" type="button" disabled>Render all destination albums</button>
       <label><input id="final-overwrite" type="checkbox" checked> Overwrite previous renders</label>
     </div>
-    <div class="final-toolbar">
-      <div class="row">
-        <label for="final-guest">Destination</label>
-        <select id="final-guest" disabled></select>
-        <button id="final-reload" type="button" disabled>Reload</button>
-      </div>
-      <span id="final-count"></span>
+    <div class="row final-toolbar">
+      <label for="final-guest">Destination</label>
+      <select id="final-guest" disabled></select>
+      <button id="final-reload" type="button" disabled>Reload</button>
     </div>
     <p id="final-feedback" class="hint" role="status"></p>
+    <p id="final-count" class="hint"></p>
 
     <div id="final-workspace" class="final-layout" hidden>
       <section class="card final-list-card" aria-label="Photos for this destination">
