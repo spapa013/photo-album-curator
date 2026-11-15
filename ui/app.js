@@ -422,12 +422,16 @@ importInput.addEventListener("change", () => {
   savePrinted();
   if (saving || pending.length) return;
   perform(async () => {
-    if (!window.confirm(`Replace photo_album_curator_data.json in the active workspace with ${file.name}?`)) return;
+    const filename = browser.diskStatus().filename;
+    if (!window.confirm(
+      `Importing ${file.name} will overwrite ${filename} in the current workspace.\n\n` +
+      "Any progress missing from the selected file will be lost. Continue?"
+    )) return;
     await browser.importProject(file, progress);
     album = null;
     await reloadAlbums();
     showDiskStatus();
-    progress(`Restored workspace from ${file.name}.`);
+    progress(`Replaced ${filename} with data from ${file.name}.`);
   });
 });
 byId("browser-backup").addEventListener("click", () => {
