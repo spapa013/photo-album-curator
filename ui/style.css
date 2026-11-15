@@ -116,10 +116,11 @@ dialog::backdrop { background: #20241f88; }
 .final-preview { display: grid; place-items: center; grid-template: minmax(0, 1fr) / minmax(0, 1fr); height: clamp(220px, 46vh, 700px); background: #20241f; color: white; }
 #final-image { display: block; width: 100%; height: 100%; object-fit: contain; }
 #final-filename { overflow-wrap: anywhere; }
-#final-order { margin-top: .65rem; }
+#final-order { flex-wrap: wrap; margin-top: .65rem; }
 #final-position-label:has(:disabled) { color: var(--muted); }
 #final-rank-form { flex-wrap: wrap; }
 #final-rank { width: 5rem; }
+#final-shortcuts { flex-wrap: wrap; gap: .35rem .8rem; margin-top: .6rem; }
 @media (max-width: 850px) {
   .final-layout { grid-template-columns: 1fr; }
   #final-list { max-height: 38vh; }

@@ -55,18 +55,25 @@
         <div class="final-photo-info">
           <strong id="final-filename"></strong>
           <p id="final-source" class="hint"></p>
-          <div id="final-order">
+          <div id="final-order" class="row">
+            <label class="row">
+              Include
+              <input id="final-include" type="checkbox" aria-keyshortcuts="I" disabled>
+            </label>
             <label id="final-position-label" class="row">
               Position
-              <input id="final-position" type="checkbox" disabled>
+              <input id="final-position" type="checkbox" aria-keyshortcuts="P" disabled>
             </label>
             <form id="final-rank-form" class="row" hidden>
-              <label for="final-rank">Position</label>
-              <input id="final-rank" type="number" min="1" step="1" required>
+              <input id="final-rank" type="number" min="1" step="1" aria-label="Position number" required>
               <button id="final-set-rank" type="submit">Move</button>
-              <button id="final-clear-rank" type="button">Clear position</button>
             </form>
           </div>
+          <p id="final-shortcuts" class="hint row">
+            <span><kbd>←</kbd> <kbd>→</kbd> Browse</span>
+            <span><kbd>I</kbd> Toggle include</span>
+            <span><kbd>P</kbd> Toggle position</span>
+          </p>
         </div>
       </section>
     </div>

@@ -44,9 +44,9 @@ The app previews JPEG, PNG, WebP, GIF, BMP, and AVIF files. JPEG, PNG, and WebP 
 
 Open **Curate destinations** and pick a destination. Photos assigned directly to it start included. Shared-only photos are available for every destination and can be included individually. Inclusion and ordering choices save per destination across all source albums.
 
-Use **All**, **Included**, **Positioned**, or **Excluded** to filter the list. Select an included photo and check **Position** below the preview to place it at the end of the positioned group. Drag positioned rows to reorder them, or enter a position below the preview and click **Move**. Use **Clear position** below the preview or exclude a photo to clear its position.
+Use **All**, **Included**, **Positioned**, or **Excluded** to filter the list. Use **Include** below the preview to decide whether the selected photo goes into the ZIP. Check **Position** to place an included photo at the end of the positioned group. Drag positioned rows to reorder them, or enter a position below the preview and click **Move**. Uncheck **Position** or **Include** to clear the position.
 
-Use **←** and **→** to browse the visible photos in their displayed order.
+Use **←** and **→** to browse the visible photos in their displayed order, **I** to toggle inclusion, and **P** to toggle position.
 
 Positioned photos come first, then unpositioned included photos in capture order, then excluded photos. Photos without capture timestamps follow in filename order within their group.
 

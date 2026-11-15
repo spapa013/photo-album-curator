@@ -7,6 +7,7 @@ const filter = byId("final-filter");
 const search = byId("final-search");
 const overwriteRenders = byId("final-overwrite");
 const image = byId("final-image");
+const includeCheckbox = byId("final-include");
 const positionCheckbox = byId("final-position");
 const rankForm = byId("final-rank-form");
 const feedback = byId("final-feedback");
@@ -28,7 +29,8 @@ function currentPhoto() {
   return plan?.photos.find((photo) => key(photo) === selected);
 }
 
-function updatePositionControls(photo) {
+function updatePhotoControls(photo) {
+  includeCheckbox.disabled = busy || !photo;
   positionCheckbox.disabled = busy || !photo?.included;
   for (const control of rankForm.elements) control.disabled = busy || photo?.rank == null;
 }
@@ -41,12 +43,11 @@ function updateControls() {
   overwriteRenders.disabled = busy || !hasGuests;
   byId("final-render").disabled = busy || !plan?.photos.some((photo) => photo.included);
   for (const row of list.children) {
-    row.querySelector('input[type="checkbox"]').disabled = busy;
     const grip = row.querySelector(".final-grip");
     row.draggable = !busy && Boolean(grip);
     if (grip) grip.draggable = row.draggable;
   }
-  updatePositionControls(currentPhoto());
+  updatePhotoControls(currentPhoto());
 }
 
 async function perform(action, message) {
@@ -86,12 +87,12 @@ function renderDetail() {
   byId("final-source").textContent = sourceLabel(photo);
   browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
   const positioned = photo.rank !== null;
-  byId("final-position-label").hidden = positioned;
+  includeCheckbox.checked = photo.included;
   positionCheckbox.checked = positioned;
   rankForm.hidden = !positioned;
   byId("final-rank").max = plan.photos.filter(({rank}) => rank !== null).length;
   byId("final-rank").value = photo.rank ?? "";
-  updatePositionControls(photo);
+  updatePhotoControls(photo);
 }
 
 function choose(photo) {
@@ -132,12 +133,6 @@ function render() {
     const row = document.createElement("li");
     row.dataset.key = key(photo);
     row.classList.toggle("current", row.dataset.key === selected);
-    const description = `${photo.path} from ${photo.album || "Loose photos"}`;
-    const included = document.createElement("input");
-    included.type = "checkbox";
-    included.checked = photo.included;
-    included.setAttribute("aria-label", `Include ${description}`);
-    included.addEventListener("change", () => edit(photo, "include", {included: included.checked}));
     const title = document.createElement("button");
     title.type = "button";
     title.className = "photo-link final-photo-link";
@@ -153,7 +148,7 @@ function render() {
     if (!photo.available) labels.push("Source missing");
     status.textContent = labels.join(" · ");
     status.hidden = !labels.length;
-    row.append(included, title, status);
+    row.append(title, status);
     if (photo.rank !== null) {
       const grip = document.createElement("span");
       grip.className = "final-grip";
@@ -242,11 +237,20 @@ byId("final-reload").addEventListener("click", () => {
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
 document.addEventListener("keydown", (event) => {
-  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  const pressed = event.key.toLowerCase();
+  const toggle = pressed === "i" ? includeCheckbox : pressed === "p" ? positionCheckbox : null;
+  if (!toggle && event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
   if (busy || draggedRow || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const focused = event.target;
   if (focused instanceof HTMLElement &&
       (focused.isContentEditable || focused.matches('input:not([type="checkbox"]), select, textarea'))) return;
+
+  if (toggle) {
+    if (toggle.disabled || event.repeat) return;
+    event.preventDefault();
+    toggle.click();
+    return;
+  }
 
   const current = list.querySelector(".current");
   if (!current) return;
@@ -257,7 +261,14 @@ document.addEventListener("keydown", (event) => {
   if (list.contains(focused)) row.querySelector(".final-photo-link").focus({preventScroll: true});
   row.scrollIntoView({block: "nearest", inline: "nearest"});
 });
+includeCheckbox.addEventListener("change", () => {
+  edit(currentPhoto(), "include", {included: includeCheckbox.checked});
+});
 positionCheckbox.addEventListener("change", () => {
+  if (!positionCheckbox.checked) {
+    edit(currentPhoto(), "unrank");
+    return;
+  }
   const position = plan.photos.filter(({rank}) => rank !== null).length + 1;
   edit(currentPhoto(), "rank", {position});
 });
@@ -265,7 +276,6 @@ rankForm.addEventListener("submit", (event) => {
   event.preventDefault();
   edit(currentPhoto(), "rank", {position: byId("final-rank").valueAsNumber});
 });
-byId("final-clear-rank").addEventListener("click", () => edit(currentPhoto(), "unrank"));
 function confirmRender(destination) {
   const overwrite = overwriteRenders.checked;
   const question = destination
