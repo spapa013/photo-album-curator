@@ -208,7 +208,7 @@ async function reloadAlbums(preferredAlbum) {
 }
 
 function navigate(position) {
-  if (!busy && position >= 0 && position < state.photos.length && position !== index) {
+  if (!busy && state && position >= 0 && position < state.photos.length && position !== index) {
     showPhoto(position);
   }
   jump.selectedIndex = index;
@@ -228,6 +228,7 @@ albumSelect.addEventListener("change", () => {
 });
 byId("previous").addEventListener("click", () => navigate(index - 1));
 byId("next").addEventListener("click", () => navigate(index + 1));
+bindPreviewSwipe(byId("preview"), (direction) => navigate(index + direction));
 jump.addEventListener("change", () => navigate(jump.selectedIndex));
 byId("retry-save").addEventListener("click", savePending);
 document.addEventListener("keydown", (event) => {

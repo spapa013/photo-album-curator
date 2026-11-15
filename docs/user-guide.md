@@ -41,7 +41,7 @@ The app supports JPEG (including JFIF), PNG, WebP, GIF, BMP, and AVIF. It reads 
 2. Use **Add a destination** to name a destination album. Destinations are available across all source albums.
 3. Check each destination that should get the current photo. Use **All destinations** to make the photo available to every destination. Each photo can have multiple assignments, and changes save automatically.
 
-The assignment screen’s progress count shows how many photos in the source album have at least one selection.
+On a touchscreen, swipe left on the preview for the next photo or right for the previous photo. The assignment screen’s progress count shows how many photos in the source album have at least one selection.
 
 ## Curate destinations
 
@@ -52,7 +52,7 @@ The assignment screen’s progress count shows how many photos in the source alb
 
 Positioned photos appear first, followed by unpositioned included photos in capture order and then excluded photos. Each destination saves its own inclusion and order choices across source albums.
 
-Use **Reload** to refresh the selected destination from the workspace file.
+Swipe left or right on the preview to browse the visible list in its current order, just like the arrow keys. Use **Reload** to refresh the selected destination from the workspace file.
 
 | Key | Action |
 | --- | --- |
