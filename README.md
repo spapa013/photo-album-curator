@@ -42,9 +42,11 @@ The sorter previews JPEG, PNG, WebP, GIF, BMP, and AVIF files. JPEG, PNG, and We
 
 Open **Curate destination albums** and pick a destination. Photos assigned directly to it start included. Shared-only photos are available for every destination and can be included individually. Inclusion and ordering choices save per destination across all source albums.
 
-Select a photo to set or clear a custom position. Numbered photos come first, followed by included photos in capture order. Photos without capture timestamps follow in filename order.
+Use **Included**, **Positioned**, or **Excluded** to filter the photo list. Select an included photo to set or clear a custom position. Numbered photos come first, followed by included photos in capture order. Photos without capture timestamps follow in filename order.
 
-Click **Render destination album ZIP** to save the included originals in `destinations/` inside the workspace. Photos have sortable prefixes such as `0001 - `. If the ZIP filename is already in use, the app adds a number to preserve the existing file.
+Use **Render destination album** or **Render all destination albums** to save ZIPs in `destinations/` inside the workspace. Each ZIP contains the included originals with sortable prefixes such as `0001 - `. Batch rendering skips destinations without included photos.
+
+**Overwrite previous renders** is checked by default. A confirmed render replaces the ZIP at the destination’s stable filename, such as `Sam [1].zip`. Clear the checkbox to add a timestamp and keep existing ZIPs. The destination ID keeps filenames distinct when names sanitize to the same text.
 
 ## Back up and restore
 

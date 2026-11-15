@@ -5,6 +5,7 @@ const guestSelect = byId("final-guest");
 const list = byId("final-list");
 const filter = byId("final-filter");
 const search = byId("final-search");
+const overwriteRenders = byId("final-overwrite");
 const image = byId("final-image");
 const feedback = byId("final-feedback");
 const errorBox = byId("final-error");
@@ -27,6 +28,8 @@ function updateControls() {
   const hasGuests = guestSelect.options.length > 0;
   guestSelect.disabled = busy || !hasGuests;
   byId("final-reload").disabled = busy || !hasGuests;
+  byId("final-render-all").disabled = busy || !hasGuests;
+  overwriteRenders.disabled = busy || !hasGuests;
   byId("final-render").disabled = busy || !plan?.photos.some((photo) => photo.included);
   for (const checkbox of list.querySelectorAll("input")) checkbox.disabled = busy;
   for (const id of ["final-rank", "final-set-rank", "final-clear-rank"]) byId(id).disabled = busy;
@@ -98,9 +101,8 @@ function render() {
   byId("final-count").textContent = `${included} of ${plan.photos.length} included`;
   const term = search.value.trim().toLowerCase();
   const visible = plan.photos.filter((photo) => {
-    const matchesFilter = filter.value === "all" ||
-      (filter.value === "included" && photo.included) ||
-      (filter.value === "ordered" && photo.rank !== null) ||
+    const matchesFilter = (filter.value === "included" && photo.included) ||
+      (filter.value === "positioned" && photo.rank !== null) ||
       (filter.value === "excluded" && !photo.included);
     return matchesFilter && `${photo.album} ${photo.path}`.toLowerCase().includes(term);
   });
@@ -127,9 +129,12 @@ function render() {
     title.append(source);
     const status = document.createElement("span");
     status.className = "status";
-    status.textContent = photo.rank !== null ? `#${photo.rank}`
-      : !photo.included ? "Available" : "Capture order";
-    if (!photo.available) status.textContent += " · Source missing";
+    const labels = [];
+    if (photo.rank !== null) labels.push(`#${photo.rank}`);
+    if (!photo.included) labels.push("Available");
+    if (!photo.available) labels.push("Source missing");
+    status.textContent = labels.join(" · ");
+    status.hidden = !labels.length;
     row.append(checkbox, title, status);
     return row;
   }));
@@ -160,14 +165,36 @@ byId("final-rank-form").addEventListener("submit", (event) => {
   edit(currentPhoto(), "rank", {position: byId("final-rank").valueAsNumber});
 });
 byId("final-clear-rank").addEventListener("click", () => edit(currentPhoto(), "unrank"));
-byId("final-render").addEventListener("click", () => {
+function confirmRender(destination) {
+  const overwrite = overwriteRenders.checked;
+  const question = destination
+    ? `Render the destination album “${destination.name}”?`
+    : "Render all destination albums? Destinations with no included photos will be skipped.";
+  const behavior = overwrite
+    ? "Each ZIP will use its usual filename in destinations/. Any previous ZIP at that path will be replaced."
+    : "Each ZIP will use a timestamped filename in destinations/. Existing ZIPs will be kept.";
+  if (!window.confirm(`${question}\n\n${behavior}`)) return;
+
   perform(async () => {
-    const result = await browser.render(plan.guest, plan.token, (message) => {
+    const {rendered, skipped, failures} = await browser.renderAlbums(destination, overwrite, (message) => {
       feedback.textContent = message;
     });
-    feedback.textContent = `Saved ${result.count} photos to ${result.path}`;
-  }, "Preparing ZIP…");
-});
+    if (destination) {
+      const [result] = rendered;
+      feedback.textContent = `Saved ${result.count} photos to ${result.path}`;
+      return;
+    }
+    const summary = `Saved ${rendered.length} destination album ZIPs to destinations/.`;
+    feedback.textContent = skipped ? `${summary} Skipped ${skipped} with no included photos.` : summary;
+    if (failures.length) {
+      errorBox.textContent = failures.join("\n");
+      errorBox.hidden = false;
+    }
+  }, "Preparing to render…");
+}
+
+byId("final-render").addEventListener("click", () => confirmRender(plan));
+byId("final-render-all").addEventListener("click", () => confirmRender(null));
 image.addEventListener("error", () => {
   image.hidden = true;
   byId("final-preview-error").hidden = false;

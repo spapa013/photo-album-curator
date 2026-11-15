@@ -589,50 +589,46 @@
   const safeName = (name) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/, "") || "Album";
 
   function archiveStem(name) {
-    // Leave room for the suffix and extension within a 255-byte filename.
-    const stem = safeName(name.normalize("NFC").trim().slice(0, 80).replace(/[\uD800-\uDFFF]/gu, "_"));
+    // Leave room for the destination ID, timestamp, and extension.
+    const stem = safeName(name.normalize("NFC").trim().slice(0, 64).replace(/[\uD800-\uDFFF]/gu, "_"));
     const reserved = /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$) *(?:\.|$)/i;
     return reserved.test(stem) ? "_" + stem : stem;
   }
 
-  async function reserveArchive(directory, stem) {
-    return navigator.locks.request(diskLock, async () => {
-      const existing = new Set();
+  const fileTimestamp = () => new Date().toISOString().replaceAll(":", "-").replace(".", "-");
+
+  async function openArchive(directory, stem, overwrite) {
+    const existing = new Set();
+    if (!overwrite) {
       for await (const name of directory.keys()) existing.add(folded(name));
-      for (let index = 1; ; index++) {
-        const name = (index === 1 ? stem : `${stem} (${index})`) + ".zip";
-        if (existing.has(folded(name))) continue;
-        try {
-          await directory.getFileHandle(name);
-        } catch (error) {
-          if (error.name === "TypeMismatchError") continue;
-          if (error.name !== "NotFoundError") throw error;
-          return directory.getFileHandle(name, {create: true});
-        }
+    }
+    for (let index = 1; ; index++) {
+      const name = (index === 1 ? stem : `${stem} (${index})`) + ".zip";
+      if (existing.has(folded(name))) continue;
+      try {
+        const file = await directory.getFileHandle(name);
+        if (overwrite) return {file, created: false};
+      } catch (error) {
+        if (!overwrite && error.name === "TypeMismatchError") continue;
+        if (error.name !== "NotFoundError") throw error;
+        return {file: await directory.getFileHandle(name, {create: true}), created: true};
       }
-    });
+    }
   }
 
-  async function render(guest, token, progress) {
-    const activeWorkspace = disk;
-    const photoSources = sources;
-    const snapshot = await project();
-    if (disk !== activeWorkspace) throw new Error("Reopen the destination album in its workspace.");
-    const plan = finalPlan(snapshot, guest);
-    if (plan.token !== token) throw new Error("Album choices changed. Reload this destination album.");
-    const photos = plan.photos.filter(({included}) => included);
-    if (!photos.length) throw new Error("Include at least one photo.");
+  async function writeArchive(directory, job, photoSources, timestamp, progress) {
+    const {plan, photos} = job;
     if (photos.some(({available}) => !available)) throw new Error("Reopen all source albums used by this destination.");
 
-    const directory = await activeWorkspace.folder.getDirectoryHandle("destinations", {create: true});
-    const file = await reserveArchive(directory, archiveStem(plan.name));
+    const stem = `${archiveStem(plan.name)} [${plan.guest}]`;
+    const {file, created} = await openArchive(directory, timestamp ? `${stem} - ${timestamp}` : stem, !timestamp);
     const width = Math.max(4, String(photos.length).length);
     let writable;
     try {
       writable = await file.createWritable();
       const writer = new zip.ZipWriter(writable, {level: 0});
       for (const [index, {album, path}] of photos.entries()) {
-        progress("Exporting photo " + (index + 1) + " of " + photos.length + "…");
+        progress(`Rendering photo ${index + 1} of ${photos.length} for ${plan.name}…`);
         const photo = photoSources.get(album).get(path);
         const label = String(index + 1).padStart(width, "0") + " - " + safeName(basename(path));
         if (photo.file) {
@@ -649,9 +645,43 @@
       return {count: photos.length, path: `destinations/${file.name}`};
     } catch (error) {
       await writable?.abort().catch(() => {});
-      await directory.removeEntry(file.name).catch(() => {});
+      if (created) await directory.removeEntry(file.name).catch(() => {});
       throw error;
     }
+  }
+
+  async function renderAlbums(destination, overwrite, progress) {
+    const workspace = disk;
+    const lock = "photo-album-curator-render:" + workspace.state.workspace.id;
+    return navigator.locks.request(lock, async () => {
+      if (disk !== workspace) throw new Error("Reopen the destination albums in their workspace.");
+      const snapshot = await project();
+      if (disk !== workspace) throw new Error("Reopen the destination albums in their workspace.");
+      const photoSources = sources;
+      const plans = destination
+        ? [finalPlan(snapshot, destination.guest)]
+        : guestList(snapshot).map(({id}) => finalPlan(snapshot, id));
+      if (destination && plans[0].token !== destination.token) {
+        throw new Error("Album choices changed. Reload this destination album.");
+      }
+      const jobs = plans.map((plan) => ({plan, photos: plan.photos.filter(({included}) => included)}))
+        .filter(({photos}) => photos.length);
+      if (destination && !jobs.length) throw new Error("Include at least one photo.");
+      const result = {rendered: [], skipped: plans.length - jobs.length, failures: []};
+      if (!jobs.length) return result;
+
+      const directory = await workspace.folder.getDirectoryHandle("destinations", {create: true});
+      const timestamp = overwrite ? "" : fileTimestamp();
+      for (const job of jobs) {
+        try {
+          result.rendered.push(await writeArchive(directory, job, photoSources, timestamp, progress));
+        } catch (error) {
+          if (destination) throw error;
+          result.failures.push(`${job.plan.name} — ${error.message}`);
+        }
+      }
+      return result;
+    });
   }
 
   function validBackup(state) {
@@ -715,7 +745,7 @@
     return navigator.locks.request(diskLock, async () => {
       const state = await readWorkspaceFile(target.file);
       const directory = await target.folder.getDirectoryHandle("backups", {create: true});
-      const timestamp = new Date().toISOString().replaceAll(":", "-").replace(".", "-");
+      const timestamp = fileTimestamp();
       const prefix = `photo_album_curator_data_backup_${timestamp}`;
       for (let index = 0; ; index++) {
         const name = prefix + (index ? `_${index}` : "") + ".json";
@@ -749,7 +779,7 @@
   }
 
   window.browserCurator = {
-    request, preview, render, showFinal, closeFinal, importProject,
+    request, preview, renderAlbums, showFinal, closeFinal, importProject,
     preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource,
     available: (key) => sources.has(key),
     backup,
