@@ -4,6 +4,7 @@
 /*.sqlite3-*
 __pycache__/
 /Final Albums/
+/destinations/
 .DS_Store
 Thumbs.db
 

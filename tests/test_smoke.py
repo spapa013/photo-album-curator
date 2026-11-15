@@ -78,7 +78,7 @@ class PlatformSmokeTest(unittest.TestCase):
 
                 for filename, route, label in [
                     ("index.html", "", b"Set Workspace"),
-                    ("final.html", "final.html", b"Download ZIP"),
+                    ("final.html", "final.html", b"Render destination album ZIP"),
                 ]:
                     page = get(route)
                     self.assertIn(label, page)

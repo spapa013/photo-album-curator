@@ -24,7 +24,7 @@ Use **Add Source Album** to choose a photo folder or one or more ZIP archives. S
 
 ## Assign photos
 
-- Select a source album and add destinations. Use **Make available to all destination albums** to let any destination include a photo.
+- Select a source album and add destinations. Use **All destinations** to let any destination include a photo.
 - Browse with **←** and **→**, **Previous**, **Next**, or the photo dropdown. The browser remembers the last photo you viewed in each album.
 - Check or uncheck any destinations to save the selection immediately. A photo with no selections has zero destinations.
 - The workspace file stores the selected destinations for export.
@@ -38,13 +38,13 @@ Use **Add Source Album** to choose a photo folder or one or more ZIP archives. S
 
 The sorter previews JPEG, PNG, WebP, GIF, BMP, and AVIF files. JPEG, PNG, and WebP photos with an EXIF capture date are sorted chronologically. Photos without a readable capture date follow in filename order. Convert HEIC, TIFF, or camera RAW files to a supported format before importing them.
 
-## Final albums
+## Destination albums
 
-Open **Final albums** and pick a guest. Their assigned photos start included. Shared-only photos are available for every guest and can be included individually. Inclusion and ordering choices save per guest across all source albums.
+Open **Curate destination albums** and pick a destination. Photos assigned directly to it start included. Shared-only photos are available for every destination and can be included individually. Inclusion and ordering choices save per destination across all source albums.
 
 Select a photo to set or clear a custom position. Numbered photos come first, followed by included photos in capture order. Photos without capture timestamps follow in filename order.
 
-Click **Download ZIP** to export the included originals with sortable prefixes such as `0001 - `. Browsers that offer a save dialog can stream the archive directly to disk.
+Click **Render destination album ZIP** to save the included originals in `destinations/` inside the workspace. Photos have sortable prefixes such as `0001 - `. If the ZIP filename is already in use, the app adds a number to preserve the existing file.
 
 ## Back up and restore
 

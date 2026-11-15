@@ -52,8 +52,8 @@ async function perform(action, message) {
 }
 
 function sourceLabel(photo) {
-  const origin = photo.assigned && photo.shared ? "Assigned to this guest and available to all"
-    : photo.assigned ? "Assigned to this guest" : "Available to all";
+  const origin = photo.assigned && photo.shared ? "Assigned to this destination and available to all"
+    : photo.assigned ? "Assigned to this destination" : "Available to all";
   return `${photo.album || "Loose photos"} · ${origin}`;
 }
 
@@ -107,7 +107,7 @@ function render() {
   if (!visible.some((photo) => key(photo) === selected)) selected = visible.length ? key(visible[0]) : null;
   byId("final-empty").hidden = visible.length > 0;
   byId("final-empty").textContent = plan.photos.length
-    ? "No photos match this filter." : "Photos assigned to this guest or made available to all will appear here.";
+    ? "No photos match this filter." : "Photos assigned to this destination or made available to all will appear here.";
   list.replaceChildren(...visible.map((photo) => {
     const row = document.createElement("li");
     row.dataset.key = key(photo);
@@ -162,10 +162,10 @@ byId("final-rank-form").addEventListener("submit", (event) => {
 byId("final-clear-rank").addEventListener("click", () => edit(currentPhoto(), "unrank"));
 byId("final-render").addEventListener("click", () => {
   perform(async () => {
-    const result = await browser.render(plan.guest, plan.token, plan.name, (message) => {
+    const result = await browser.render(plan.guest, plan.token, (message) => {
       feedback.textContent = message;
     });
-    feedback.textContent = result ? `Exported ${result.count} photos to ${result.name}` : "";
+    feedback.textContent = `Saved ${result.count} photos to ${result.path}`;
   }, "Preparing ZIP…");
 });
 image.addEventListener("error", () => {
@@ -186,4 +186,4 @@ perform(async () => {
   const guest = guests.find(({id}) => id === preferred) ?? guests[0];
   if (guest) await openGuest(guest.id);
   else feedback.textContent = "";
-}, "Loading guests…");
+}, "Loading destinations…");

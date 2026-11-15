@@ -451,7 +451,7 @@
 
   function finalPlan(state, guest) {
     const person = state.guests.find(({id}) => id === guest);
-    if (!person) throw new Error("Choose a guest.");
+    if (!person) throw new Error("Choose a destination.");
     const choices = new Map(state.choices.filter((row) => row.guest === guest)
       .map((row) => [photoKey(row.album, row.path), row]));
     const photos = [];
@@ -478,9 +478,9 @@
 
   function editFinal(state, data) {
     const plan = finalPlan(state, data.guest);
-    if (plan.token !== data.token) throw new Error("Album choices changed. Reload this guest album.");
+    if (plan.token !== data.token) throw new Error("Album choices changed. Reload this destination album.");
     const photo = plan.photos.find((item) => item.album === data.album && item.path === data.photo);
-    if (!photo) throw new Error("This photo is unavailable for this guest.");
+    if (!photo) throw new Error("This photo is unavailable for this destination.");
     let choice = state.choices.find((item) => item.guest === data.guest &&
       item.album === data.album && item.path === data.photo);
     if (!choice) {
@@ -586,45 +586,51 @@
     }
   }
 
-  function download(blob, name) {
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = name;
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  const safeName = (name) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/, "") || "Album";
+
+  function archiveStem(name) {
+    // Leave room for the suffix and extension within a 255-byte filename.
+    const stem = safeName(name.normalize("NFC").trim().slice(0, 80).replace(/[\uD800-\uDFFF]/gu, "_"));
+    const reserved = /^(?:CON|PRN|AUX|NUL|COM[1-9¹²³]|LPT[1-9¹²³]|CONIN\$|CONOUT\$) *(?:\.|$)/i;
+    return reserved.test(stem) ? "_" + stem : stem;
   }
 
-  const safeName = (name) => name.replace(/[<>:"/\\|?*\x00-\x1f]/g, "_").replace(/[. ]+$/, "") || "Album";
-  async function render(guest, token, filename, progress) {
+  async function reserveArchive(directory, stem) {
+    return navigator.locks.request(diskLock, async () => {
+      const existing = new Set();
+      for await (const name of directory.keys()) existing.add(folded(name));
+      for (let index = 1; ; index++) {
+        const name = (index === 1 ? stem : `${stem} (${index})`) + ".zip";
+        if (existing.has(folded(name))) continue;
+        try {
+          await directory.getFileHandle(name);
+        } catch (error) {
+          if (error.name === "TypeMismatchError") continue;
+          if (error.name !== "NotFoundError") throw error;
+          return directory.getFileHandle(name, {create: true});
+        }
+      }
+    });
+  }
+
+  async function render(guest, token, progress) {
     const activeWorkspace = disk;
     const photoSources = sources;
-    // Call the native picker before awaiting the project transaction, while activation is available.
-    const name = safeName(filename) + ".zip";
-    let handle;
-    if (window.showSaveFilePicker) {
-      try {
-        handle = await window.showSaveFilePicker({
-          suggestedName: name,
-          types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}],
-        });
-      } catch (error) {
-        if (error.name === "AbortError") return null;
-        if (error.name !== "SecurityError" && error.name !== "NotAllowedError") throw error;
-      }
-    }
-    if (disk !== activeWorkspace) throw new Error("Reopen the guest album in its workspace.");
     const snapshot = await project();
-    if (disk !== activeWorkspace) throw new Error("Reopen the guest album in its workspace.");
+    if (disk !== activeWorkspace) throw new Error("Reopen the destination album in its workspace.");
     const plan = finalPlan(snapshot, guest);
-    if (plan.token !== token) throw new Error("Album choices changed. Reload this guest album.");
+    if (plan.token !== token) throw new Error("Album choices changed. Reload this destination album.");
     const photos = plan.photos.filter(({included}) => included);
     if (!photos.length) throw new Error("Include at least one photo.");
-    if (photos.some(({available}) => !available)) throw new Error("Reopen all source albums used by this guest.");
-    const writable = handle ? await handle.createWritable() : null;
-    const writer = new zip.ZipWriter(writable ?? new zip.BlobWriter("application/zip"), {level: 0});
+    if (photos.some(({available}) => !available)) throw new Error("Reopen all source albums used by this destination.");
+
+    const directory = await activeWorkspace.folder.getDirectoryHandle("destinations", {create: true});
+    const file = await reserveArchive(directory, archiveStem(plan.name));
     const width = Math.max(4, String(photos.length).length);
+    let writable;
     try {
+      writable = await file.createWritable();
+      const writer = new zip.ZipWriter(writable, {level: 0});
       for (const [index, {album, path}] of photos.entries()) {
         progress("Exporting photo " + (index + 1) + " of " + photos.length + "…");
         const photo = photoSources.get(album).get(path);
@@ -639,11 +645,11 @@
           ]);
         }
       }
-      const output = await writer.close();
-      if (!writable) download(output, name);
-      return {count: photos.length, name: handle?.name ?? name};
+      await writer.close();
+      return {count: photos.length, path: `destinations/${file.name}`};
     } catch (error) {
-      if (writable) await writable.abort().catch(() => {});
+      await writable?.abort().catch(() => {});
+      await directory.removeEntry(file.name).catch(() => {});
       throw error;
     }
   }

@@ -112,7 +112,7 @@ function queueSave(path, changes) {
 function renderDestinations() {
   const photo = currentPhoto().path;
   const selected = new Set(state.reviews[photo] ?? []);
-  const choices = [["", "Make available to all destination albums"], ...state.guests.map((name) => [name, name])];
+  const choices = [["", "All destinations"], ...state.guests.map((name) => [name, name])];
   destinations.replaceChildren(...choices.map(([name, label]) => {
     const row = document.createElement("label");
     const checkbox = document.createElement("input");

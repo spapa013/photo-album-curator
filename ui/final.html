@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Final Albums · Photo Album Curator</title>
+  <title>Destination Albums · Photo Album Curator</title>
   <link rel="stylesheet" href="style.css">
   <script src="final.js" defer></script>
 </head>
@@ -11,29 +11,29 @@
   <main>
     <header class="top">
       <div>
-        <h1>Final albums</h1>
-        <p class="subtitle">Choose what each guest receives and arrange the photos for delivery.</p>
+        <h1>Destination albums</h1>
+        <p class="subtitle">Curate and arrange the photos for each destination album</p>
       </div>
       <a class="button-link" href="./">Back to assignments</a>
     </header>
 
     <p id="final-error" class="notice error" role="alert" hidden></p>
-    <p id="no-guests" class="notice" hidden>Add a destination on the assignment screen to start a final album.</p>
+    <p id="no-guests" class="notice" hidden>Add a destination on the assignment screen to start a destination album.</p>
     <div class="final-toolbar">
       <div class="row">
-        <label for="final-guest">Guest</label>
+        <label for="final-guest">Destination</label>
         <select id="final-guest" disabled></select>
         <button id="final-reload" type="button" disabled>Reload</button>
       </div>
       <div class="row">
         <span id="final-count"></span>
-        <button id="final-render" class="primary" type="button" disabled>Download ZIP</button>
+        <button id="final-render" class="primary" type="button" disabled>Render destination album ZIP</button>
       </div>
     </div>
     <p id="final-feedback" class="hint" role="status"></p>
 
     <div id="final-workspace" class="final-layout" hidden>
-      <section class="card final-list-card" aria-label="Photos for this guest">
+      <section class="card final-list-card" aria-label="Photos for this destination">
         <div class="final-filters">
           <input id="final-search" type="search" aria-label="Find a photo" placeholder="Find a photo or source album">
           <select id="final-filter" aria-label="Filter photos">
