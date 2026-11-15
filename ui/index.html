@@ -17,14 +17,7 @@
           <span id="browser-privacy" class="privacy-note" hidden>Photos stay on your device.</span>
         </p>
       </div>
-      <div class="album-controls">
-        <label for="album">Album</label>
-        <div class="row">
-          <select id="album" disabled></select>
-          <button id="reload" type="button">Reload albums</button>
-          <a id="final-link" class="button-link" href="final.html" hidden>Final albums</a>
-        </div>
-      </div>
+      <a id="final-link" class="button-link" href="final.html" hidden>Curate destination albums</a>
     </header>
 
     <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
@@ -39,6 +32,11 @@
       <button id="browser-backup" type="button">Download backup</button>
       <input id="browser-import-input" type="file" accept=".json" hidden>
       <p id="browser-project-status" class="hint" role="status"></p>
+      <div id="browser-album-controls" class="row" hidden>
+        <label for="album">Source album</label>
+        <select id="album" disabled></select>
+        <button id="reload" type="button">Reload albums</button>
+      </div>
       <ul id="browser-source-list" hidden></ul>
     </section>
     <dialog id="browser-source-dialog" aria-labelledby="browser-source-heading">

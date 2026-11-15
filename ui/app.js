@@ -335,14 +335,16 @@ function showDiskStatus() {
   const disk = browser.diskStatus();
   byId("final-link").hidden = !disk;
   byId("browser-remember-label").hidden = !disk;
+  byId("browser-album-controls").hidden = !disk;
   if (!disk) return;
   remember.checked = disk.rememberExternal;
   progress(`Workspace: ${disk.name} · Saving to ${disk.filename}`);
-  sourceList.hidden = !disk.sources.length;
-  sourceList.replaceChildren(...disk.sources.map((source) => {
+  const unavailable = disk.sources.filter((source) => !source.available);
+  sourceList.hidden = !unavailable.length;
+  sourceList.replaceChildren(...unavailable.map((source) => {
     const row = document.createElement("li");
-    row.textContent = source.name + (source.available ? "" : " · Reopen source");
-    if (!source.available && source.reconnect) {
+    row.textContent = source.name + " · Reopen source";
+    if (source.reconnect) {
       const button = document.createElement("button");
       button.type = "button";
       button.textContent = "Reconnect";
