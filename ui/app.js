@@ -414,8 +414,6 @@ for (const kind of ["folder", "zip"]) {
   });
 }
 const importInput = byId("browser-import-input");
-const importStatus = byId("browser-import-status");
-let importStatusTimer;
 byId("browser-import").addEventListener("click", () => importInput.click());
 importInput.addEventListener("change", () => {
   const file = importInput.files[0];
@@ -429,8 +427,6 @@ importInput.addEventListener("change", () => {
       `Importing ${file.name} will overwrite ${filename} in the current workspace.\n\n` +
       "Any progress missing from the selected file will be lost. Continue?"
     )) return;
-    importStatus.textContent = "";
-    clearTimeout(importStatusTimer);
     try {
       await browser.importProject(file, progress);
       album = null;
@@ -438,8 +434,6 @@ importInput.addEventListener("change", () => {
     } finally {
       showDiskStatus();
     }
-    importStatus.textContent = `Replaced ${filename} with data from ${file.name}.`;
-    importStatusTimer = setTimeout(() => { importStatus.textContent = ""; }, 5000);
   });
 });
 byId("browser-backup").addEventListener("click", () => {
