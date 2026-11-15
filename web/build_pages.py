@@ -13,6 +13,8 @@ import sys
 from tarfile import open as open_tar
 from tempfile import TemporaryDirectory
 
+from build_guide import build_guide
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FIRST_VERSION = "v0.3.0"
@@ -23,7 +25,7 @@ def github(*args):
     return subprocess.check_output(["gh", "api", *args], cwd=ROOT, text=True).strip()
 
 
-def build(ref, destination):
+def build(ref, destination, version):
     print(f"Building {ref} for {destination.name}", flush=True)
     source = subprocess.check_output(["git", "archive", "--format=tar", ref], cwd=ROOT)
     with TemporaryDirectory() as directory:
@@ -32,8 +34,16 @@ def build(ref, destination):
             archive.extractall(checkout, filter="data")
         environment = os.environ.copy()
         environment.pop("GH_TOKEN", None)
+        environment["CURATOR_BUILD_LABEL"] = version
         subprocess.run([sys.executable, "web/build.py"], cwd=checkout, env=environment, check=True)
-        shutil.copytree(checkout / "dist", destination)
+        built = checkout / "dist"
+        if not (built / "user-guide" / "index.html").is_file():
+            readme = (checkout / "README.md").read_text(encoding="utf-8")
+            _, _, body = readme.partition("\n")
+            body = body.replace("](https://spapa013.github.io/photo-album-curator/)", "](../)")
+            guide = "# User guide\n\nThese instructions come from this release’s README.\n" + body
+            build_guide(guide, built, version)
+        shutil.copytree(built, destination)
 
 
 def add_version_navigation(output, latest, tags, development_commit):
@@ -68,6 +78,11 @@ def add_version_navigation(output, latest, tags, development_commit):
         index = directory / "index.html"
         for path in (final, index):
             page = path.read_text(encoding="utf-8").replace("</head>", css_link + "</head>", 1)
+            if 'href="user-guide/"' not in page:
+                guide_link = (
+                    '      <a class="button-link" href="user-guide/" target="_blank" rel="noopener">User guide</a>\n'
+                )
+                page = page.replace("    </header>", guide_link + "    </header>", 1)
             path.write_text(page.replace("    <header", navigation + "    <header", 1), encoding="utf-8")
         fingerprint = sha256(final.read_bytes()).hexdigest()[:16]
         page = re.sub(r'href="final\.html\?v=[0-9a-f]+"', f'href="final.html?v={fingerprint}"',
@@ -90,14 +105,14 @@ def main():
 
     with TemporaryDirectory(dir=ROOT) as directory:
         output = Path(directory) / "site"
-        build(f"refs/tags/{latest}", output)
+        build(f"refs/tags/{latest}", output, latest)
         versions = output / "versions"
         shutil.copytree(output, versions / latest, ignore=shutil.ignore_patterns("versions"))
         for tag in sorted(tags - {latest}):
-            build(f"refs/tags/{tag}", versions / tag)
-        build("HEAD", output / "dev")
+            build(f"refs/tags/{tag}", versions / tag, tag)
         development_commit = subprocess.check_output(
             ["git", "rev-parse", "--short=8", "HEAD"], cwd=ROOT, text=True).strip()
+        build("HEAD", output / "dev", f"Development ({development_commit})")
         add_version_navigation(output, latest, sorted(tags, key=lambda tag: tuple(map(int, tag[1:].split("."))),
                                                       reverse=True), development_commit)
         dist = ROOT / "dist"

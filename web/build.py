@@ -3,10 +3,13 @@ from base64 import b64decode
 import argparse
 from hashlib import sha256, sha512
 from io import BytesIO
+import os
 from pathlib import Path
 import shutil
 from tarfile import open as open_tar
 from urllib.request import urlopen
+
+from build_guide import build_guide
 
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
@@ -56,4 +59,6 @@ for name, script in (("final.html", "final.js"), ("index.html", "app.js")):
     if name == "index.html":
         page = page.replace('href="final.html"', f'href="{asset_url("final.html")}"')
     (DIST / name).write_text(page, encoding="utf-8")
+guide_source = (ROOT / "docs" / "user-guide.md").read_bytes().decode("utf-8")
+build_guide(guide_source, DIST, os.environ.get("CURATOR_BUILD_LABEL", ""))
 (DIST / ".nojekyll").touch()

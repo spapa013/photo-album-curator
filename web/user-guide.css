@@ -1,0 +1,12 @@
+.guide { width: min(92%, 49rem); padding-bottom: 3rem; }
+.guide header { align-items: center; margin-bottom: 1.7rem; }
+.guide article { line-height: 1.65; overflow-wrap: anywhere; }
+.guide article > * + * { margin-top: .8rem; }
+.guide article h2 { margin-top: 1.7rem; }
+.guide article a { color: var(--accent, #315941); }
+.guide ol, .guide ul { padding-inline-start: 1.4rem; }
+.guide li + li { margin-top: .3rem; }
+.guide code { padding: .1em .28em; border-radius: .25rem; background: #e8efe6; }
+.guide table { border-collapse: collapse; }
+.guide th, .guide td { padding: .35rem .7rem; border: 1px solid var(--border, #dcded5); text-align: start; }
+.guide th { background: #e8efe6; }

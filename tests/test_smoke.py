@@ -8,7 +8,7 @@ from tempfile import TemporaryDirectory
 from threading import Thread
 import unittest
 from urllib.error import HTTPError
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from urllib.request import Request, urlopen
 from zipfile import ZipFile
 
@@ -82,6 +82,7 @@ class PlatformSmokeTest(unittest.TestCase):
                 ]:
                     page = get(route)
                     self.assertIn(label, page)
+                    self.assertIn(b'href="user-guide/"', page)
                     self.assertEqual(page, (app / "dist" / filename).read_bytes())
                     assets = PageAssets()
                     assets.feed(page.decode())
@@ -90,6 +91,16 @@ class PlatformSmokeTest(unittest.TestCase):
                         parts = urlsplit(url)
                         self.assertFalse(parts.scheme or parts.netloc)
                         self.assertEqual(get(url), (app / "dist" / parts.path).read_bytes())
+
+                guide = get("user-guide")
+                self.assertIn(b">User guide</h1>", guide)
+                self.assertIn(b'href="../" class="button-link">Back to app</a>', guide)
+                self.assertEqual(guide, (app / "dist" / "user-guide" / "index.html").read_bytes())
+                self.assertEqual(get("user-guide/user-guide.md"), (app / "docs" / "user-guide.md").read_bytes())
+                assets = PageAssets()
+                assets.feed(guide.decode())
+                for url in assets.urls:
+                    self.assertTrue(get(urljoin("user-guide/", url)))
 
                 for route in ("private.json", "../private.json", "api/albums"):
                     with self.assertRaises(HTTPError) as error:
