@@ -10,3 +10,18 @@
 #browser-final { width: 98vw; max-width: none; height: 96vh; padding: 0; }
 #browser-final iframe { display: block; width: 100%; height: 100%; border: 0; }
 #browser-project-status { overflow-wrap: anywhere; }
+#browser-import-status {
+  position: fixed;
+  z-index: 3;
+  inset-inline-end: 1rem;
+  inset-block-end: 1rem;
+  max-width: min(32rem, calc(100% - 2rem));
+  overflow-wrap: anywhere;
+  pointer-events: none;
+}
+#browser-import-status:not(:empty) {
+  padding: .8rem 1rem;
+  border-radius: .55rem;
+  background: var(--accent);
+  color: white;
+}
