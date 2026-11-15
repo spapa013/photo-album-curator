@@ -7,6 +7,8 @@ const filter = byId("final-filter");
 const search = byId("final-search");
 const overwriteRenders = byId("final-overwrite");
 const image = byId("final-image");
+const positionCheckbox = byId("final-position");
+const rankForm = byId("final-rank-form");
 const feedback = byId("final-feedback");
 const errorBox = byId("final-error");
 const browser = window.browserCurator;
@@ -26,6 +28,11 @@ function currentPhoto() {
   return plan?.photos.find((photo) => key(photo) === selected);
 }
 
+function updatePositionControls(photo) {
+  positionCheckbox.disabled = busy || !photo?.included;
+  for (const control of rankForm.elements) control.disabled = busy || photo?.rank == null;
+}
+
 function updateControls() {
   const hasGuests = guestSelect.options.length > 0;
   guestSelect.disabled = busy || !hasGuests;
@@ -34,14 +41,12 @@ function updateControls() {
   overwriteRenders.disabled = busy || !hasGuests;
   byId("final-render").disabled = busy || !plan?.photos.some((photo) => photo.included);
   for (const row of list.children) {
-    const [included, positioned] = row.querySelectorAll('input[type="checkbox"]');
-    included.disabled = busy;
-    positioned.disabled = busy || !included.checked;
-    row.draggable = !busy && positioned.checked;
+    row.querySelector('input[type="checkbox"]').disabled = busy;
     const grip = row.querySelector(".final-grip");
+    row.draggable = !busy && Boolean(grip);
     if (grip) grip.draggable = row.draggable;
   }
-  for (const id of ["final-rank", "final-set-rank", "final-clear-rank"]) byId(id).disabled = busy;
+  updatePositionControls(currentPhoto());
 }
 
 async function perform(action, message) {
@@ -80,9 +85,13 @@ function renderDetail() {
   byId("final-filename").textContent = photo.path;
   byId("final-source").textContent = sourceLabel(photo);
   browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
-  byId("final-order").hidden = photo.rank === null;
+  const positioned = photo.rank !== null;
+  byId("final-position-label").hidden = positioned;
+  positionCheckbox.checked = positioned;
+  rankForm.hidden = !positioned;
   byId("final-rank").max = plan.photos.filter(({rank}) => rank !== null).length;
   byId("final-rank").value = photo.rank ?? "";
+  updatePositionControls(photo);
 }
 
 function choose(photo) {
@@ -137,23 +146,6 @@ function render() {
     const source = document.createElement("small");
     source.textContent = sourceLabel(photo);
     title.append(source);
-    const positionLabel = document.createElement("label");
-    positionLabel.className = "final-position";
-    const positioned = document.createElement("input");
-    positioned.type = "checkbox";
-    positioned.checked = photo.rank !== null;
-    positioned.setAttribute("aria-label", `Position ${description}`);
-    positioned.addEventListener("change", () => {
-      if (!positioned.checked) {
-        edit(photo, "unrank");
-        return;
-      }
-      const position = plan.photos.filter(({rank}) => rank !== null).length + 1;
-      edit(photo, "rank", {position});
-    });
-    const label = document.createElement("span");
-    label.textContent = "Position";
-    positionLabel.append(positioned, label);
     const status = document.createElement("span");
     status.className = "status";
     const labels = [];
@@ -161,8 +153,8 @@ function render() {
     if (!photo.available) labels.push("Source missing");
     status.textContent = labels.join(" · ");
     status.hidden = !labels.length;
-    row.append(included, title, positionLabel, status);
-    if (positioned.checked) {
+    row.append(included, title, status);
+    if (photo.rank !== null) {
       const grip = document.createElement("span");
       grip.className = "final-grip";
       grip.textContent = "⠿";
@@ -265,7 +257,11 @@ document.addEventListener("keydown", (event) => {
   if (list.contains(focused)) row.querySelector(".final-photo-link").focus({preventScroll: true});
   row.scrollIntoView({block: "nearest", inline: "nearest"});
 });
-byId("final-rank-form").addEventListener("submit", (event) => {
+positionCheckbox.addEventListener("change", () => {
+  const position = plan.photos.filter(({rank}) => rank !== null).length + 1;
+  edit(currentPhoto(), "rank", {position});
+});
+rankForm.addEventListener("submit", (event) => {
   event.preventDefault();
   edit(currentPhoto(), "rank", {position: byId("final-rank").valueAsNumber});
 });

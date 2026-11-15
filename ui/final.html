@@ -55,8 +55,12 @@
         <div class="final-photo-info">
           <strong id="final-filename"></strong>
           <p id="final-source" class="hint"></p>
-          <div id="final-order" hidden>
-            <form id="final-rank-form" class="row">
+          <div id="final-order">
+            <label id="final-position-label" class="row">
+              Position
+              <input id="final-position" type="checkbox" disabled>
+            </label>
+            <form id="final-rank-form" class="row" hidden>
               <label for="final-rank">Position</label>
               <input id="final-rank" type="number" min="1" step="1" required>
               <button id="final-set-rank" type="submit">Move</button>

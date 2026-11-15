@@ -110,8 +110,6 @@ dialog::backdrop { background: #20241f88; }
 #final-list li.drop-before { box-shadow: inset 0 2px var(--accent); }
 #final-list li.drop-after { box-shadow: inset 0 -2px var(--accent); }
 .final-grip { color: var(--muted); user-select: none; }
-.final-position { display: flex; align-items: center; gap: .3rem; font-size: .82rem; font-weight: 400; }
-.final-position input:disabled + span { color: var(--muted); opacity: .65; }
 .final-photo-link { flex: 1; min-width: 0; background: transparent; }
 .final-photo-link small { display: block; font-weight: normal; color: var(--muted); }
 .final-detail { overflow: hidden; }
@@ -119,7 +117,8 @@ dialog::backdrop { background: #20241f88; }
 #final-image { display: block; width: 100%; height: 100%; object-fit: contain; }
 #final-filename { overflow-wrap: anywhere; }
 #final-order { margin-top: .65rem; }
-#final-rank-form { flex-wrap: wrap; margin-top: .35rem; }
+#final-position-label:has(:disabled) { color: var(--muted); }
+#final-rank-form { flex-wrap: wrap; }
 #final-rank { width: 5rem; }
 @media (max-width: 850px) {
   .final-layout { grid-template-columns: 1fr; }
