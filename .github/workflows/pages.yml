@@ -31,7 +31,7 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - uses: actions/configure-pages@v5
-      - name: Build release and edge pages
+      - name: Build release and development pages
         run: python3 web/build_pages.py
         env:
           GH_TOKEN: ${{ github.token }}

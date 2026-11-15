@@ -1,4 +1,4 @@
-"""Build a single Pages artifact containing the stable, pinned, and edge apps."""
+"""Build a single Pages artifact containing the stable, pinned, and development apps."""
 
 from hashlib import sha256
 from html import escape
@@ -36,14 +36,14 @@ def build(ref, destination):
         shutil.copytree(checkout / "dist", destination)
 
 
-def add_version_navigation(output, latest, tags, edge_commit):
-    edge = output / "edge"
+def add_version_navigation(output, latest, tags, development_commit):
+    development = output / "dev"
     releases = {output / "versions" / tag: tag for tag in tags}
     stylesheet = ROOT / "web" / "versions.css"
     shutil.copyfile(stylesheet, output / stylesheet.name)
     css_version = sha256(stylesheet.read_bytes()).hexdigest()[:16]
 
-    for directory in (output, edge, *releases):
+    for directory in (output, development, *releases):
         def link(target, label):
             href = Path(relpath(target, directory)).as_posix() + "/"
             current = ' aria-current="page"' if target == directory else ""
@@ -51,12 +51,12 @@ def add_version_navigation(output, latest, tags, edge_commit):
 
         label = "Select previous version" + (f" ({releases[directory]})" if directory in releases else "")
         release_links = "".join(f"<li>{link(target, tag)}</li>" for target, tag in releases.items())
-        description = f'<small>Build {escape(edge_commit)}</small>' if directory == edge else ""
+        description = f'<small>Build {escape(development_commit)}</small>' if directory == development else ""
         navigation = (
             '    <nav aria-label="App versions" class="version-nav">\n'
             f'      {link(output, f"Latest Release ({latest})")}\n'
             '      <span aria-hidden="true">–</span>\n'
-            f'      {link(edge, "Edge")}\n'
+            f'      {link(development, "Development")}\n'
             '      <span aria-hidden="true">–</span>\n'
             f'      <details><summary>{escape(label)}</summary><ul>{release_links}</ul></details>\n'
             f'      {description}\n'
@@ -95,11 +95,11 @@ def main():
         shutil.copytree(output, versions / latest, ignore=shutil.ignore_patterns("versions"))
         for tag in sorted(tags - {latest}):
             build(f"refs/tags/{tag}", versions / tag)
-        build("HEAD", output / "edge")
-        edge_commit = subprocess.check_output(
+        build("HEAD", output / "dev")
+        development_commit = subprocess.check_output(
             ["git", "rev-parse", "--short=8", "HEAD"], cwd=ROOT, text=True).strip()
         add_version_navigation(output, latest, sorted(tags, key=lambda tag: tuple(map(int, tag[1:].split("."))),
-                                                      reverse=True), edge_commit)
+                                                      reverse=True), development_commit)
         dist = ROOT / "dist"
         if dist.exists():
             shutil.rmtree(dist)

@@ -362,7 +362,7 @@ byId("browser-set-workspace").addEventListener("click", () => {
   savePrinted();
   if (saving || pending.length) return;
   if (!window.showDirectoryPicker || !navigator.locks) {
-    errorBox.textContent = "Use Chrome or Edge to save a project directly to a workspace folder.";
+    errorBox.textContent = "Use Chrome or Microsoft Edge to save a project directly to a workspace folder.";
     errorBox.hidden = false;
     return;
   }

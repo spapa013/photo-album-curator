@@ -48,7 +48,7 @@ def main():
             url = f"http://127.0.0.1:{server.server_port}/"
             print(f"Photo Album Curator is ready at {url}", flush=True)
             if not args.no_browser:
-                print("Open the address in Chrome or Edge.", flush=True)
+                print("Open the address in Chrome or Microsoft Edge.", flush=True)
                 webbrowser.open(url)
             server.serve_forever()
     except KeyboardInterrupt:
