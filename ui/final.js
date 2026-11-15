@@ -249,6 +249,22 @@ byId("final-reload").addEventListener("click", () => {
 });
 filter.addEventListener("change", render);
 search.addEventListener("input", render);
+document.addEventListener("keydown", (event) => {
+  if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
+  if (busy || draggedRow || event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const focused = event.target;
+  if (focused instanceof HTMLElement &&
+      (focused.isContentEditable || focused.matches('input:not([type="checkbox"]), select, textarea'))) return;
+
+  const current = list.querySelector(".current");
+  if (!current) return;
+  event.preventDefault();
+  const row = event.key === "ArrowLeft" ? current.previousElementSibling : current.nextElementSibling;
+  if (!row) return;
+  choose(plan.photos.find((photo) => key(photo) === row.dataset.key));
+  if (list.contains(focused)) row.querySelector(".final-photo-link").focus({preventScroll: true});
+  row.scrollIntoView({block: "nearest", inline: "nearest"});
+});
 byId("final-rank-form").addEventListener("submit", (event) => {
   event.preventDefault();
   edit(currentPhoto(), "rank", {position: byId("final-rank").valueAsNumber});

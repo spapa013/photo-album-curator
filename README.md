@@ -46,6 +46,8 @@ Open **Curate destinations** and pick a destination. Photos assigned directly to
 
 Use **All**, **Included**, **Positioned**, or **Excluded** to filter the list. Check **Position** on an included photo to place it at the end of the positioned group. Drag positioned photos to reorder them, or select one and enter a position. Uncheck **Position** or exclude a photo to clear its position.
 
+Use **←** and **→** to browse the visible photos in their displayed order.
+
 Positioned photos come first, then unpositioned included photos in capture order, then excluded photos. Photos without capture timestamps follow in filename order within their group.
 
 Use **Render destination album** or **Render all destination albums**, then confirm to save ZIPs in `destinations/` inside the workspace. Each ZIP contains the included originals with sortable prefixes such as `0001 - `. Batch rendering skips destinations without included photos.
