@@ -2,7 +2,7 @@
 
 Create personalized albums from a shared photo collection.
 
-No photos are uploaded. All photos stay on your device
+No photos are uploaded. All photos stay on your device.
 
 ## Open the app
 
