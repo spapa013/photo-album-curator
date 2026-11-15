@@ -92,7 +92,15 @@
 
   function preference(key, value) {
     if (value === undefined) return disk?.state.workspace.preferences[key] ?? null;
-    return project((state) => { state.workspace.preferences[key] = String(value); });
+    return savePreferences({[key]: value});
+  }
+
+  function savePreferences(preferences) {
+    return project((state) => {
+      for (const [key, value] of Object.entries(preferences)) {
+        state.workspace.preferences[key] = String(value);
+      }
+    });
   }
 
   async function readWorkspaceFile(handle) {
@@ -891,7 +899,7 @@
   }
 
   window.browserCurator = {
-    request, preview, renderAlbums, showFinal, closeFinal, importProject,
+    request, preview, renderAlbums, showFinal, closeFinal, importProject, savePreferences,
     preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource, relinkSource, sourceForAlbum,
     available: (key) => sources.has(key),
     backup,

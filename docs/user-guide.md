@@ -37,7 +37,7 @@ The app supports JPEG (including JFIF), PNG, WebP, GIF, BMP, and AVIF. It reads 
 
 ## Assign photos
 
-1. Select a **Source album** and browse with **Previous**, **Next**, **←**, **→**, or the photo dropdown. The workspace remembers the last photo you viewed in each album.
+1. Select a **Source album** and browse with **Previous**, **Next**, **←**, **→**, or the photo dropdown. When you pause, the workspace quietly saves the last photo you viewed so you can pick up there next time.
 2. Use **Add a destination** to name a destination album. Destinations are available across all source albums.
 3. Check each destination that should get the current photo. Use **All destinations** to make the photo available to every destination. Each photo can have multiple assignments, and changes save automatically.
 

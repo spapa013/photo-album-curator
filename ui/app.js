@@ -9,15 +9,6 @@ const destinationName = byId("destination-name");
 const feedback = byId("feedback");
 const errorBox = byId("error");
 const browser = window.browserCurator;
-function preference(key, value) {
-  if (value === undefined) return browser.preference(key);
-  const waiting = pending.findLastIndex((item) => item.path === "/api/preference" && item.changes.key === key);
-  const latest = waiting >= 0 ? pending[waiting].changes.value : browser.preference(key);
-  if (String(latest) !== String(value)) {
-    if (waiting >= 0 && (!saving || waiting > 0)) pending.splice(waiting, 1);
-    queueSave("/api/preference", {key, value});
-  }
-}
 let album = null;
 let state = null;
 let index = 0;
@@ -25,8 +16,43 @@ let busy = false;
 let saving = false;
 let saveFailed = false;
 const pending = [];
+const viewingPreferences = new Map();
+let viewingTimer = null;
 
 const request = browser.request;
+
+function preference(key, value) {
+  const latest = viewingPreferences.get(key) ?? browser.preference(key);
+  if (value === undefined) return latest;
+  if (latest === value) return;
+  viewingPreferences.set(key, value);
+  clearTimeout(viewingTimer);
+  viewingTimer = setTimeout(() => {
+    viewingTimer = null;
+    if (!saveFailed) savePending();
+  }, 500);
+}
+
+async function saveViewingPreferences() {
+  const snapshot = [...viewingPreferences];
+  const changed = snapshot.filter(([key, value]) => browser.preference(key) !== value);
+  if (changed.length) await browser.savePreferences(Object.fromEntries(changed));
+  for (const [key, value] of snapshot) {
+    if (viewingPreferences.get(key) === value) viewingPreferences.delete(key);
+  }
+  if (snapshot.length) saveFailed = false;
+}
+
+function endViewingPause() {
+  clearTimeout(viewingTimer);
+  viewingTimer = null;
+}
+
+function resetViewingPreferences() {
+  endViewingPause();
+  viewingPreferences.clear();
+  saveFailed = false;
+}
 
 function currentPhoto() {
   return state?.photos[index];
@@ -76,35 +102,36 @@ async function perform(action) {
 }
 
 async function savePending() {
-  if (busy || saving || !pending.length) return;
+  const viewingReady = () => viewingPreferences.size && viewingTimer === null;
+  if (busy || saving || (!pending.length && !viewingReady())) return;
   saving = true;
   saveFailed = false;
-  feedback.textContent = "Saving…";
   errorBox.hidden = true;
   updateControls();
   try {
-    while (pending.length) {
-      const {path, changes} = pending[0];
-      await request(path, {...changes, album, revision: state.revision});
-      // Each successful write advances our revision once, even if another tab saves before the response.
-      if (path !== "/api/preference") state.revision += 1;
-      pending.shift();
+    while (pending.length || viewingReady()) {
+      if (!pending.length) {
+        await saveViewingPreferences();
+        continue;
+      }
+      feedback.textContent = "Saving…";
+      do {
+        await request("/api/assignment", {...pending[0], album, revision: state.revision});
+        // Each successful write advances our revision once, even if another tab saves before the response.
+        state.revision += 1;
+        pending.shift();
+      } while (pending.length);
+      feedback.textContent = "Saved";
     }
-    feedback.textContent = "Saved";
   } catch (error) {
     saveFailed = true;
-    feedback.textContent = "Changes waiting to save";
-    errorBox.textContent = error.message;
+    if (pending.length) feedback.textContent = "Changes waiting to save";
+    errorBox.textContent = pending.length ? error.message : `Could not save your place. ${error.message}`;
     errorBox.hidden = false;
   } finally {
     saving = false;
     updateControls();
   }
-}
-
-function queueSave(path, changes) {
-  pending.push({path, changes});
-  if (!saveFailed) savePending();
 }
 
 function renderDestinations() {
@@ -125,7 +152,8 @@ function renderDestinations() {
         allDestinations: selected.has(null)};
       state.assignments[photo] = assignment;
       renderAssignmentSummary();
-      queueSave("/api/assignment", assignment);
+      pending.push(assignment);
+      if (!saveFailed) savePending();
     });
     row.append(checkbox, name);
     return row;
@@ -229,7 +257,10 @@ albumSelect.addEventListener("change", () => {
 byId("previous").addEventListener("click", () => navigate(index - 1));
 byId("next").addEventListener("click", () => navigate(index + 1));
 jump.addEventListener("change", () => navigate(jump.selectedIndex));
-byId("retry-save").addEventListener("click", savePending);
+byId("retry-save").addEventListener("click", () => {
+  endViewingPause();
+  savePending();
+});
 document.addEventListener("keydown", (event) => {
   if (busy || !currentPhoto() || byId("browser-source-dialog").open || event.defaultPrevented ||
       event.altKey || event.ctrlKey || event.metaKey || event.shiftKey ||
@@ -261,6 +292,12 @@ window.addEventListener("beforeunload", (event) => {
   if (pending.length) {
     event.preventDefault();
     event.returnValue = true;
+  }
+});
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    endViewingPause();
+    if (!saveFailed) savePending();
   }
 });
 
@@ -331,17 +368,19 @@ byId("browser-set-workspace").addEventListener("click", () => {
     return;
   }
   perform(async () => {
-    try {
-      await browser.setWorkspace(progress);
-    } catch (error) {
-      if (error.name === "AbortError") return;
-      throw error;
+    // Start saving against the current workspace while the picker still has user activation.
+    const [viewingSave, opened] = await Promise.allSettled([saveViewingPreferences(), browser.setWorkspace(progress)]);
+    if (opened.status === "fulfilled") {
+      resetViewingPreferences();
+      album = null;
+      state = null;
+      showDiskStatus();
+      byId("empty").textContent = "Use Add Source to add a photo folder or ZIP to this workspace.";
+      await reloadAlbums();
+    } else if (opened.reason.name !== "AbortError") {
+      throw opened.reason;
     }
-    album = null;
-    state = null;
-    showDiskStatus();
-    byId("empty").textContent = "Use Add Source to add a photo folder or ZIP to this workspace.";
-    await reloadAlbums();
+    if (viewingSave.status === "rejected") throw viewingSave.reason;
   });
 });
 remember.addEventListener("change", () => {
@@ -394,6 +433,7 @@ importInput.addEventListener("change", () => {
     )) return;
     try {
       await browser.importProject(file, progress);
+      resetViewingPreferences();
       album = null;
       await reloadAlbums();
     } finally {
@@ -404,6 +444,7 @@ importInput.addEventListener("change", () => {
 byId("browser-backup").addEventListener("click", () => {
   if (saving || pending.length) return;
   perform(async () => {
+    await saveViewingPreferences();
     const path = await browser.backup();
     progress(`Backup saved to ${path}`);
   });
