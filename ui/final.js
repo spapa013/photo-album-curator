@@ -132,7 +132,6 @@ function render() {
     status.className = "status";
     const labels = [];
     if (photo.rank !== null) labels.push(`#${photo.rank}`);
-    if (!photo.included) labels.push("Available");
     if (!photo.available) labels.push("Source missing");
     status.textContent = labels.join(" · ");
     status.hidden = !labels.length;
