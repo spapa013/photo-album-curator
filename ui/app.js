@@ -45,6 +45,7 @@ function updateControls() {
   }
   albumSelect.disabled = busy || saving || albumSelect.options.length === 0;
   byId("reload").disabled = busy || saving || !browser.diskStatus();
+  byId("browser-relink").disabled = blocked || !browser.sourceForAlbum(album);
   byId("previous").disabled = busy || index <= 0;
   byId("next").disabled = busy || !hasPhoto || index >= state.photos.length - 1;
   for (const control of [jump, destinations]) {
@@ -262,6 +263,23 @@ const status = byId("browser-project-status");
 const remember = byId("browser-remember-external");
 const sourceList = byId("browser-source-list");
 const progress = (message) => { status.textContent = message; };
+function relinkSource(id) {
+  if (!id || saving || pending.length) return;
+  perform(async () => {
+    let missing = 0;
+    try {
+      missing = await browser.relinkSource(id, progress);
+      await reloadAlbums();
+    } catch (error) {
+      if (error.name !== "AbortError") throw error;
+    } finally {
+      showDiskStatus();
+      if (missing) progress(`${status.textContent} · ${missing} original photo paths are missing. Their saved choices are kept.`);
+    }
+  });
+}
+
+byId("browser-relink").addEventListener("click", () => relinkSource(browser.sourceForAlbum(album)));
 function showDiskStatus() {
   const disk = browser.diskStatus();
   byId("final-link").hidden = !disk;
@@ -286,6 +304,12 @@ function showDiskStatus() {
       }));
       row.append(button);
     }
+    const relink = document.createElement("button");
+    relink.type = "button";
+    relink.textContent = "Relink Source";
+    relink.setAttribute("aria-label", "Relink source " + source.name);
+    relink.addEventListener("click", () => relinkSource(source.id));
+    row.append(relink);
     return row;
   }));
 }

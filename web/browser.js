@@ -133,10 +133,15 @@
     return {name: disk.folder.name, filename: disk.file.name, rememberExternal, sources: records.map((record) => ({
       id: record.id, name: record.name,
       available: record.albums.length > 0 && record.albums.every((key) => sources.has(key)),
-      reconnect: record.relative === null && rememberExternal && externalHandles.has(record.id),
+      reconnect: record.relative === null && rememberExternal && externalHandles.has(sourceHandleId(record)),
     }))};
   }
 
+  function sourceForAlbum(album) {
+    return disk?.state.workspace.sources.find((record) => record.albums.includes(album))?.id;
+  }
+
+  const sourceHandleId = (record) => record.handleId ?? record.id;
   const handlesKey = (id) => `workspace-handles:${id}`;
 
   async function saveHandles(state) {
@@ -168,10 +173,10 @@
     if (record.mergeSubfolders !== undefined) return record.mergeSubfolders ? 0 : 1;
   }
 
-  async function scanSource(handle, kind, depth, progress) {
-    if (kind === "folder") return scanFolder(handle, depth, progress);
+  async function scanSource(handle, kind, depth, progress, sourceName = handle.name) {
+    if (kind === "folder") return scanFolder(handle, depth, progress, sourceName);
     const groups = new Map();
-    await groupArchive(groups, await handle.getFile(), depth);
+    await groupArchive(groups, await handle.getFile(), depth, sourceName);
     return scanGroups(groups, progress);
   }
 
@@ -188,18 +193,23 @@
     for (const [key, photos] of opened) sources.set(key, photos);
   }
 
+  function matchesLocation(record, kind, name, relative) {
+    if (record.kind !== kind) return false;
+    return relative !== null ? JSON.stringify(record.relative) === JSON.stringify(relative)
+      : record.relative === null && record.name === name;
+  }
+
   async function connectSource(handle, kind, depth, progress) {
     const relative = await disk.folder.resolve(handle);
-    const sameSource = (record) => record.kind === kind && (relative !== null
-      ? JSON.stringify(record.relative) === JSON.stringify(relative)
-      : record.relative === null && record.name === handle.name);
+    const sameSource = (record) => matchesLocation(record, kind, handle.name, relative);
     const previous = (await project()).workspace.sources.find(sameSource);
     const grouping = previous ? sourceDepth(previous) : depth;
-    const opened = await scanSource(handle, kind, grouping, progress);
+    const opened = await scanSource(handle, kind, grouping, progress, previous?.albumRoot);
     const state = await project((state) => {
       const records = state.workspace.sources;
       let record = records.find(sameSource);
-      if ((previous && record?.id !== previous.id) || (record && sourceDepth(record) !== grouping)) {
+      if ((previous && (record?.id !== previous.id || sourceHandleId(record) !== sourceHandleId(previous))) ||
+          (record && sourceDepth(record) !== grouping)) {
         throw new Error("The source changed in the workspace. Use Add Source again.");
       }
       if (!record) {
@@ -210,19 +220,23 @@
     });
     const record = state.workspace.sources.find(sameSource);
     if (relative === null) {
-      externalHandles.set(record.id, handle);
+      externalHandles.set(sourceHandleId(record), handle);
       if (state.workspace.rememberExternal) await saveHandles(state);
     }
     updateOpenSource(record, opened);
     return [...opened.keys()];
   }
 
+  async function pickSources(kind, multiple) {
+    return kind === "folder"
+      ? [await window.showDirectoryPicker({mode: "read", id: "curator-albums"})]
+      : window.showOpenFilePicker({multiple, id: "curator-zips",
+        types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}]});
+  }
+
   async function chooseSource(kind, progress, depth = 1) {
     if (!validAlbumDepth(depth)) throw new Error("Enter a whole number of folders, starting at zero.");
-    const handles = kind === "folder"
-      ? [await window.showDirectoryPicker({mode: "read", id: "curator-albums"})]
-      : await window.showOpenFilePicker({multiple: true, id: "curator-zips",
-        types: [{description: "ZIP archive", accept: {"application/zip": [".zip"]}}]});
+    const handles = await pickSources(kind, true);
     const opened = [];
     for (const handle of handles) opened.push(...await connectSource(handle, kind, depth, progress));
     return opened;
@@ -239,10 +253,10 @@
 
   async function refreshSource(record, handle, progress) {
     const depth = sourceDepth(record);
-    const opened = await scanSource(handle, record.kind, depth, progress);
+    const opened = await scanSource(handle, record.kind, depth, progress, record.albumRoot);
     const state = await project((state) => {
       const current = state.workspace.sources.find(({id}) => id === record.id);
-      if (!current || sourceDepth(current) !== depth) {
+      if (!current || sourceHandleId(current) !== sourceHandleId(record) || sourceDepth(current) !== depth) {
         throw new Error("The source changed in the workspace. Set Workspace again.");
       }
       registerAlbums(state, current, opened);
@@ -258,7 +272,7 @@
     }
     for (const record of workspace.sources) {
       try {
-        const handle = record.relative === null ? externalHandles.get(record.id) : await relativeHandle(record);
+        const handle = record.relative === null ? externalHandles.get(sourceHandleId(record)) : await relativeHandle(record);
         if (handle && await handle.queryPermission({mode: "read"}) === "granted") {
           await refreshSource(record, handle, progress);
         }
@@ -269,10 +283,58 @@
   }
 
   async function reconnectSource(id, progress) {
-    const handle = externalHandles.get(id);
-    if (!handle || await handle.requestPermission({mode: "read"}) !== "granted") return;
     const record = disk.state.workspace.sources.find((item) => item.id === id);
-    if (record) await refreshSource(record, handle, progress);
+    if (!record) return;
+    const handle = externalHandles.get(sourceHandleId(record));
+    if (handle && await handle.requestPermission({mode: "read"}) === "granted") {
+      await refreshSource(record, handle, progress);
+    }
+  }
+
+  async function relinkSource(id, progress) {
+    const workspace = disk;
+    const record = workspace?.state.workspace.sources.find((item) => item.id === id);
+    if (!record) throw new Error("Choose a source to relink.");
+    const [handle] = await pickSources(record.kind, false);
+    const relative = await workspace.folder.resolve(handle);
+    const albumRoot = record.albumRoot ?? record.name;
+    const opened = await scanSource(handle, record.kind, sourceDepth(record), progress, albumRoot);
+    if (!opened.size) throw new Error("The replacement source has no supported photos.");
+    if (disk !== workspace) throw new Error("Reopen the workspace and relink the source again.");
+
+    let missing = 0;
+    const state = await project((state) => {
+      const records = state.workspace.sources;
+      const current = records.find((item) => item.id === id);
+      if (!current || sourceHandleId(current) !== sourceHandleId(record) || sourceDepth(current) !== sourceDepth(record)) {
+        throw new Error("The source changed in the workspace. Set Workspace again.");
+      }
+      if (records.some((item) => item !== current && matchesLocation(item, record.kind, handle.name, relative))) {
+        throw new Error("The replacement is already linked to another source in this workspace.");
+      }
+      let matched = 0;
+      for (const album of state.albums) {
+        if (!current.albums.includes(album.key)) continue;
+        const paths = new Set([...album.photos.map(({path}) => path), ...album.reviews.map(([path]) => path)]);
+        for (const path of paths) {
+          if (opened.get(album.key)?.has(path)) matched++;
+          else missing++;
+        }
+        album.revision++;
+      }
+      if (missing && !matched) throw new Error("The replacement contains none of this source’s saved photo paths.");
+      registerAlbums(state, current, opened);
+      // Keep the album keys, but give the new browser handle its own storage key.
+      Object.assign(current, {name: handle.name, relative, albumRoot, handleId: crypto.randomUUID()});
+    });
+    const current = state.workspace.sources.find((item) => item.id === id);
+    externalHandles.delete(sourceHandleId(record));
+    updateOpenSource(current, opened);
+    if (relative === null) {
+      externalHandles.set(sourceHandleId(current), handle);
+      if (state.workspace.rememberExternal) await saveHandles(state);
+    }
+    return missing;
   }
 
   function captureDate(bytes) {
@@ -421,7 +483,7 @@
     }
   }
 
-  async function scanFolder(folder, depth, progress) {
+  async function scanFolder(folder, depth, progress, sourceName) {
     const photos = [];
     const archives = [];
     async function collect(directory, prefix) {
@@ -438,13 +500,13 @@
     await collect(folder, "");
     const groups = new Map();
     // Older workspaces use album keys and photo paths from the original grouping rules.
-    const legacyFolder = depth === undefined && folder.name.toLowerCase() === "albums";
-    groupPhotos(groups, photos, folder.name, depth, legacyFolder);
+    const legacyFolder = depth === undefined && sourceName.toLowerCase() === "albums";
+    groupPhotos(groups, photos, sourceName, depth, legacyFolder);
     for (const file of archives) await groupArchive(groups, file, depth);
     return scanGroups(groups, progress);
   }
 
-  async function groupArchive(groups, file, depth) {
+  async function groupArchive(groups, file, depth, sourceName = file.name) {
     if (!/\.zip$/i.test(file.name)) return;
     const archive = new zip.ZipReader(new zip.BlobReader(file));
     const entries = (await archive.getEntries()).filter((entry) => !entry.directory &&
@@ -452,7 +514,7 @@
     const first = entries[0]?.filename.split("/")[0] + "/";
     const prefix = depth === undefined && entries.every((entry) => entry.filename.startsWith(first))
       ? first.length : 0;
-    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), file.name, depth);
+    groupPhotos(groups, entries.map((entry) => ({path: entry.filename.slice(prefix), entry})), sourceName, depth);
   }
 
   function addAlbum(state, key) {
@@ -746,6 +808,8 @@
       Array.isArray(value.sources) && value.sources.every((record) => record &&
         typeof record.id === "string" && typeof record.name === "string" &&
         ["folder", "zip"].includes(record.kind) &&
+        (record.albumRoot === undefined || (typeof record.albumRoot === "string" && record.albumRoot.length > 0)) &&
+        (record.handleId === undefined || (typeof record.handleId === "string" && record.handleId.length > 0)) &&
         (record.albumFolderDepth === undefined || validAlbumDepth(record.albumFolderDepth)) &&
         (record.mergeSubfolders === undefined || typeof record.mergeSubfolders === "boolean") &&
         (record.relative === null || (Array.isArray(record.relative) &&
@@ -815,7 +879,7 @@
 
   window.browserCurator = {
     request, preview, renderAlbums, showFinal, closeFinal, importProject,
-    preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource,
+    preference, setWorkspace, diskStatus, rememberExternal, chooseSource, reconnectSource, relinkSource, sourceForAlbum,
     available: (key) => sources.has(key),
     backup,
   };

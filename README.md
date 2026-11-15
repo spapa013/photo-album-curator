@@ -28,6 +28,8 @@ Each photo keeps its full path within the folder or ZIP. ZIPs directly inside a 
 
 The workspace remembers the depth for each source. Sources inside the workspace reopen by relative path. Turn on **Remember external albums** to let this browser remember access to sources outside the workspace. Use **Reconnect** when a remembered source needs permission again.
 
+If a source moves or is renamed, choose **Relink Source** next to the source album selector or on the missing source’s row. Select the same folder or ZIP at its new location. The workspace keeps its album names and depth. Assignments and custom positions follow photos with the same paths within the source. Saved choices for missing paths stay in the workspace.
+
 ## Assign photos
 
 - Select a source album and add destinations. Use **All destinations** to let any destination include a photo.
