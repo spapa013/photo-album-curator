@@ -291,7 +291,7 @@ byId("browser-relink").addEventListener("click", () => relinkSource(browser.sour
 function showDiskStatus() {
   const disk = browser.diskStatus();
   byId("final-link").hidden = !disk;
-  byId("browser-remember-label").hidden = !disk;
+  byId("browser-remember-control").hidden = !disk;
   byId("browser-album-controls").hidden = !disk;
   if (!disk) return;
   remember.checked = disk.rememberExternal;

@@ -35,7 +35,6 @@ button { font-weight: 600; cursor: pointer; }
 button:hover:not(:disabled) { background: #eef2eb; }
 button:disabled { cursor: default; opacity: .55; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.help-toggle { flex: none; width: 1.65rem; height: 1.65rem; padding: 0; border-radius: 50%; color: var(--accent); }
 .help-panel {
   width: min(19rem, calc(100vw - 2rem));
   padding: .75rem .9rem;
@@ -48,9 +47,11 @@ button:disabled { cursor: default; opacity: .55; }
 }
 .help-panel a { display: inline-block; margin-top: .35rem; color: var(--accent); }
 @supports (position-area: block-end span-inline-start) {
+  [data-help]:has(.help-panel:popover-open) { anchor-name: --active-help; }
   .help-panel {
     inset: auto;
     margin: .35rem 0;
+    position-anchor: --active-help;
     position-area: block-end span-inline-start;
     position-try-fallbacks: flip-inline, flip-block, flip-block flip-inline, --help-centered, --help-centered flip-block;
   }
@@ -60,7 +61,7 @@ button:disabled { cursor: default; opacity: .55; }
   }
 }
 @supports not selector(:popover-open) {
-  .help-toggle, .help-panel { display: none; }
+  .help-panel { display: none; }
 }
 select, input { min-width: 0; }
 #album { max-width: min(53vw, 23rem); }

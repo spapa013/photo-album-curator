@@ -2,6 +2,7 @@
 .browser-tools .hint { flex-basis: 100%; }
 .privacy-note { display: inline-block; margin-inline-start: .65rem; font-size: .9rem; }
 .source-depth, .source-type-options { flex-wrap: wrap; margin-top: .7rem; }
+.source-depth { width: fit-content; }
 #browser-album-depth { width: 5rem; }
 #browser-project-status:empty { display: none; }
 .browser-workspace { flex-basis: 100%; flex-wrap: wrap; margin-bottom: .25rem; }

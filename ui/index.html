@@ -25,23 +25,31 @@
 
     <section id="browser-tools" class="browser-tools" aria-label="Local albums and project" hidden>
       <div class="browser-workspace row">
-        <button id="browser-set-workspace" type="button">Set Workspace</button>
-        <label id="browser-remember-label" hidden>
-          <input id="browser-remember-external" type="checkbox"> Remember external albums
-        </label>
+        <div class="row" data-help>
+          <button id="browser-set-workspace" type="button">Set Workspace</button>
+          <div class="help-panel" popover>
+            <p>Choose a folder for your project. Select the same folder when you return to reopen your progress.</p>
+            <a href="user-guide/#set-up-a-workspace" target="_blank" rel="noopener">Read about workspaces</a>
+          </div>
+        </div>
+        <div id="browser-remember-control" class="row" data-help hidden>
+          <label><input id="browser-remember-external" type="checkbox"> Remember external albums</label>
+          <div class="help-panel" popover>
+            <p>Let this browser remember access to sources outside your workspace so it can reopen them later.</p>
+            <a href="user-guide/#reopen-or-relink-sources" target="_blank" rel="noopener">Read about reopening sources</a>
+          </div>
+        </div>
       </div>
       <button id="browser-add-source" type="button" aria-haspopup="dialog" disabled>Add Source</button>
-      <div class="row">
+      <div class="row" data-help>
         <button id="browser-import" type="button">Import state</button>
-        <button class="help-toggle" type="button" popovertarget="import-help" aria-label="Help with importing state">?</button>
         <div class="help-panel" id="import-help" popover>
           <p>Restore a project file or backup. Confirming the import replaces the current workspace state.</p>
           <a href="user-guide/#back-up-and-restore" target="_blank" rel="noopener">Read about restoring state</a>
         </div>
       </div>
-      <div class="row">
+      <div class="row" data-help>
         <button id="browser-backup" type="button">Save backup</button>
-        <button class="help-toggle" type="button" popovertarget="backup-help" aria-label="Help with saving a backup">?</button>
         <div class="help-panel" id="backup-help" popover>
           <p>Save a snapshot of your workspace state in the <code>backups/</code> folder.</p>
           <a href="user-guide/#back-up-and-restore" target="_blank" rel="noopener">Read about backups</a>
@@ -64,13 +72,12 @@
         <button id="browser-zip" type="button">Choose ZIP</button>
         <button id="browser-cancel-source" type="button">Cancel</button>
       </div>
-      <div class="row source-depth">
+      <div class="row source-depth" data-help>
         <label class="row">
           Album folder depth
           <input id="browser-album-depth" type="number" min="0" max="9007199254740991" step="1" value="1"
                  aria-describedby="browser-album-depth-hint" required>
         </label>
-        <button class="help-toggle" type="button" popovertarget="depth-help" aria-label="Help with album folder depth">?</button>
         <div class="help-panel" id="depth-help" popover>
           <p>Depth 0 keeps a source together. Depth 1 groups by top-level folder. Higher numbers group by deeper folders.</p>
           <a href="user-guide/#add-sources" target="_blank" rel="noopener">Read about album folder depth</a>

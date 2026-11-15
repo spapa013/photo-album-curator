@@ -109,6 +109,7 @@ class PlatformSmokeTest(unittest.TestCase):
                 assets.feed(guide.decode())
                 self.assertCountEqual(guide_sections, [
                     "back-up-and-restore", "back-up-and-restore", "add-sources", "render-destination-albums",
+                    "set-up-a-workspace", "reopen-or-relink-sources",
                 ])
                 self.assertTrue(set(guide_sections) <= assets.ids)
                 for url in assets.urls:
