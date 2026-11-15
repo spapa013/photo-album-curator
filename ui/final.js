@@ -13,6 +13,8 @@ const browser = window.browserCurator;
 let plan = null;
 let selected = null;
 let busy = false;
+let draggedRow = null;
+let targetRow = null;
 
 const request = (path, data) => browser.request("/api/final/" + path, data);
 
@@ -31,7 +33,14 @@ function updateControls() {
   byId("final-render-all").disabled = busy || !hasGuests;
   overwriteRenders.disabled = busy || !hasGuests;
   byId("final-render").disabled = busy || !plan?.photos.some((photo) => photo.included);
-  for (const checkbox of list.querySelectorAll("input")) checkbox.disabled = busy;
+  for (const row of list.children) {
+    const [included, positioned] = row.querySelectorAll('input[type="checkbox"]');
+    included.disabled = busy;
+    positioned.disabled = busy || !included.checked;
+    row.draggable = !busy && positioned.checked;
+    const grip = row.querySelector(".final-grip");
+    if (grip) grip.draggable = row.draggable;
+  }
   for (const id of ["final-rank", "final-set-rank", "final-clear-rank"]) byId(id).disabled = busy;
 }
 
@@ -71,11 +80,9 @@ function renderDetail() {
   byId("final-filename").textContent = photo.path;
   byId("final-source").textContent = sourceLabel(photo);
   browser.preview(image, byId("final-preview-error"), photo.album, photo.path);
-  byId("final-order").hidden = !photo.included;
-  const maxRank = plan.photos.filter(({rank}) => rank !== null).length + (photo.rank === null ? 1 : 0);
-  byId("final-rank").max = maxRank;
-  byId("final-rank").value = photo.rank ?? maxRank;
-  byId("final-clear-rank").hidden = photo.rank === null;
+  byId("final-order").hidden = photo.rank === null;
+  byId("final-rank").max = plan.photos.filter(({rank}) => rank !== null).length;
+  byId("final-rank").value = photo.rank ?? "";
 }
 
 function choose(photo) {
@@ -95,6 +102,7 @@ function edit(photo, action, values = {}) {
 }
 
 function render() {
+  clearDrag();
   byId("final-workspace").hidden = !plan;
   if (!plan) return;
   const included = plan.photos.filter((photo) => photo.included).length;
@@ -115,11 +123,12 @@ function render() {
     const row = document.createElement("li");
     row.dataset.key = key(photo);
     row.classList.toggle("current", row.dataset.key === selected);
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = photo.included;
-    checkbox.setAttribute("aria-label", `Include ${photo.path} from ${photo.album || "Loose photos"}`);
-    checkbox.addEventListener("change", () => edit(photo, "include", {included: checkbox.checked}));
+    const description = `${photo.path} from ${photo.album || "Loose photos"}`;
+    const included = document.createElement("input");
+    included.type = "checkbox";
+    included.checked = photo.included;
+    included.setAttribute("aria-label", `Include ${description}`);
+    included.addEventListener("change", () => edit(photo, "include", {included: included.checked}));
     const title = document.createElement("button");
     title.type = "button";
     title.className = "photo-link final-photo-link";
@@ -128,6 +137,23 @@ function render() {
     const source = document.createElement("small");
     source.textContent = sourceLabel(photo);
     title.append(source);
+    const positionLabel = document.createElement("label");
+    positionLabel.className = "final-position";
+    const positioned = document.createElement("input");
+    positioned.type = "checkbox";
+    positioned.checked = photo.rank !== null;
+    positioned.setAttribute("aria-label", `Set position for ${description}`);
+    positioned.addEventListener("change", () => {
+      if (!positioned.checked) {
+        edit(photo, "unrank");
+        return;
+      }
+      const position = plan.photos.filter(({rank}) => rank !== null).length + 1;
+      edit(photo, "rank", {position});
+    });
+    const label = document.createElement("span");
+    label.textContent = "Set position";
+    positionLabel.append(positioned, label);
     const status = document.createElement("span");
     status.className = "status";
     const labels = [];
@@ -135,12 +161,75 @@ function render() {
     if (!photo.available) labels.push("Source missing");
     status.textContent = labels.join(" · ");
     status.hidden = !labels.length;
-    row.append(checkbox, title, status);
+    row.append(included, title, positionLabel, status);
+    if (positioned.checked) {
+      const grip = document.createElement("span");
+      grip.className = "final-grip";
+      grip.textContent = "⠿";
+      grip.title = "Drag to reorder";
+      grip.setAttribute("aria-hidden", "true");
+      row.append(grip);
+    }
     return row;
   }));
   renderDetail();
   updateControls();
 }
+
+function setDropTarget(row, after = false) {
+  targetRow?.classList.remove("drop-before", "drop-after");
+  targetRow = row;
+  targetRow?.classList.add(after ? "drop-after" : "drop-before");
+}
+
+function clearDrag() {
+  draggedRow?.classList.remove("dragging");
+  draggedRow = null;
+  setDropTarget(null);
+}
+
+function dropTarget(event) {
+  const row = event.target.closest("li");
+  return draggedRow && row?.draggable && row !== draggedRow ? row : null;
+}
+
+function dropAfter(event, row) {
+  const bounds = row.getBoundingClientRect();
+  return event.clientY >= bounds.top + bounds.height / 2;
+}
+
+list.addEventListener("dragstart", (event) => {
+  const row = event.target.closest("li");
+  if (!row?.draggable || (event.target !== row && !event.target.matches(".final-grip"))) return;
+  draggedRow = row;
+  row.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", "Reorder photo");
+});
+list.addEventListener("dragover", (event) => {
+  const row = dropTarget(event);
+  if (!row) {
+    setDropTarget(null);
+    return;
+  }
+  event.preventDefault();
+  event.dataTransfer.dropEffect = "move";
+  setDropTarget(row, dropAfter(event, row));
+});
+list.addEventListener("dragleave", (event) => {
+  if (!list.contains(event.relatedTarget)) setDropTarget(null);
+});
+list.addEventListener("dragend", clearDrag);
+list.addEventListener("drop", (event) => {
+  const row = dropTarget(event);
+  if (!row) return;
+  event.preventDefault();
+  const photo = plan.photos.find((item) => key(item) === draggedRow.dataset.key);
+  const target = plan.photos.find((item) => key(item) === row.dataset.key);
+  const position = target.rank - Number(photo.rank < target.rank) + Number(dropAfter(event, row));
+  clearDrag();
+  if (position !== photo.rank) edit(photo, "rank", {position});
+});
 
 async function openGuest(guest) {
   plan = await request("open", {guest});

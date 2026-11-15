@@ -577,23 +577,29 @@
       choice = {guest: data.guest, album: data.album, path: data.photo, included: null, rank: null};
       state.choices.push(choice);
     }
+    const ordered = plan.photos.filter((item) => item !== photo && item.rank !== null)
+      .map((item) => photoKey(item.album, item.path));
+    let position = photo.rank;
     if (data.action === "include" && typeof data.included === "boolean") {
       choice.included = data.included;
+      if (!data.included || !photo.included) choice.rank = null;
     } else if (data.action === "unrank") {
       choice.rank = null;
     } else if (data.action === "rank" && photo.included) {
-      const ranks = state.choices.filter((item) => item.guest === data.guest && item !== choice && item.rank !== null)
-        .sort((a, b) => a.rank - b.rank);
-      const active = new Set(plan.photos.filter((item) => item.included).map((item) => photoKey(item.album, item.path)));
-      const ordered = ranks.filter((item) => active.has(photoKey(item.album, item.path)));
       if (!Number.isInteger(data.position) || data.position < 1 || data.position > ordered.length + 1) {
         throw new Error("Choose a position within the custom order.");
       }
-      const next = ordered[data.position - 1];
-      ranks.splice(next ? ranks.indexOf(next) : ranks.length, 0, choice);
-      ranks.forEach((item, index) => { item.rank = index + 1; });
+      position = data.position;
+      choice.rank = position;
     } else {
       throw new Error("Choose a valid album action.");
+    }
+    if (choice.rank !== null) ordered.splice(position - 1, 0, photoKey(photo.album, photo.path));
+    const ranks = new Map(ordered.map((key, index) => [key, index + 1]));
+    for (const item of state.choices) {
+      if (item.guest !== data.guest) continue;
+      const rank = ranks.get(photoKey(item.album, item.path));
+      if (rank !== undefined) item.rank = rank;
     }
     state.choices = state.choices.filter((item) => item.included !== null || item.rank !== null);
   }
